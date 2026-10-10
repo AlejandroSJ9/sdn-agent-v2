@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pytest:*)",
+      "Bash(python -m pytest:*)",
+      "Bash(uvicorn:*)",
+      "Bash(pip install -r requirements.txt)",
+      "Bash(git status)",
+      "Bash(git diff:*)"
+    ],
+    "ask": [
+      "Bash(pip install:*)",
+      "Bash(git commit:*)",
+      "Edit(requirements.txt)"
+    ],
+    "deny": [
+      "Edit(CLAUDE.md)",
+      "Edit(docs/contratos.md)",
+      "Edit(docs/PLAN.md)",
+      "Edit(docs/ajustes.md)",
+      "Edit(docs/referencia/**)",
+      "Read(.env)",
+      "Bash(git push:*)",
+      "Bash(rm -rf:*)"
+    ]
+  }
+}

@@ -1,0 +1,12 @@
+# Ideas fuera de alcance
+
+Anotar aquí (una línea) lo que no pide la fase actual.
+
+## Sugerencias surgidas en la Fase 0
+
+- **[Impacto ALTO] Fijar dependencias transitivas (`requirements.lock` con `pip freeze`).** Hoy solo se fijan las 7 directas; `anyio`, `starlette`, `pydantic-core`, etc. quedan libres. Ya pasó: `anyio 4.15.1` emite un DeprecationWarning dentro de `starlette.testclient`. Una versión futura de una transitiva puede romper `pytest` o el arranque el día de la demo sin cambiar nuestro código. Solución: generar un lock con `pip freeze > requirements.lock` e instalar desde él.
+- **[Impacto ALTO] SQLite con `PRAGMA foreign_keys=ON` y `journal_mode=WAL`.** SQLite ignora las FK por defecto (se podría insertar una alerta con `incidente_id` inexistente). Además, en la Fase 1 el endpoint escribe mientras `BackgroundTasks` escribe en el pipeline, y el modo de journal por defecto bloquea toda la base en cada escritura, lo que provoca `database is locked` en ráfagas. Solución: un listener `connect` en `database.py` que active ambos PRAGMA (no hace falta una dependencia nueva).
+- **[Impacto MEDIO] Proteger la tabla `auditoria` también a nivel de base (triggers `BEFORE UPDATE/DELETE` → `RAISE(ABORT)`).** Hoy el "solo inserción" depende solo de la disciplina del código. Un trigger hace que hasta un error de programación o un `sqlite3` manual falle, y refuerza el argumento de integridad en la tesis. Se combina con `verificar_cadena()` de la Fase 1.
+- **[Impacto MEDIO] Validar en `Settings` que `AGENT_TOKEN` y `OPERADOR_TOKEN` no estén vacíos al arrancar.** Hoy valen `""` por defecto. Si en la Fase 1 la comparación no contempla el vacío, un encabezado vacío podría autenticar. Solución: un validador que haga fallar el arranque (fuera de las pruebas) si faltan, y comparar con `hmac.compare_digest`.
+- **[Impacto BAJO] Guardar los `DateTime` siempre en UTC al leerlos.** SQLite no guarda la zona horaria: `DateTime(timezone=True)` devuelve datetimes "naive" al leer, y restar `t_explicado - t_ryu` puede mezclar naive y aware (TypeError). Solución: un `TypeDecorator` que normalice a UTC aware al leer y escribir. Afecta las métricas de tiempo de la Fase 8.
+- **[Impacto BAJO] Migraciones (Alembic) en vez de `create_all`.** `create_all` no altera tablas existentes: si la Fase 2 agrega columnas (tokens, latencia), una `sdn_agent.db` previa queda desfasada. Para el MVP basta con borrar la base local; Alembic sería una dependencia nueva, así que solo con aprobación.
