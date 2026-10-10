@@ -29,6 +29,10 @@ class Incidente(Base):
     evidencias: Mapped[list | None] = mapped_column(JSON)
     recomendacion_operador: Mapped[str | None] = mapped_column(Text)
     fuente_explicacion: Mapped[str | None] = mapped_column(String(10))  # "llm" | "reglas"
+    motivo_respaldo: Mapped[str | None] = mapped_column(String(30))  # null si la fuente es "llm"
+    tokens_entrada: Mapped[int | None] = mapped_column(Integer)
+    tokens_salida: Mapped[int | None] = mapped_column(Integer)
+    latencia_llm_ms: Mapped[int | None] = mapped_column(Integer)
     # Marcas de tiempo (CLAUDE.md §7)
     t_ryu: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     t_recibido: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora_utc)
@@ -65,6 +69,9 @@ class UsoLlm(Base):
 
     fecha: Mapped[str] = mapped_column(String(10), primary_key=True)  # día UTC YYYY-MM-DD
     peticiones: Mapped[int] = mapped_column(Integer, default=0)
+    fallidas: Mapped[int] = mapped_column(Integer, default=0)
+    tokens_entrada: Mapped[int] = mapped_column(Integer, default=0)
+    tokens_salida: Mapped[int] = mapped_column(Integer, default=0)
 
 
 class Notificacion(Base):

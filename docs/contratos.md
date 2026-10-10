@@ -34,6 +34,8 @@ Cuerpo (el que Ryu-IA ya envía hoy en `_send_json_alert`):
 
 Validación: `host_origen` debe ser IPv4; métricas numéricas ≥ 0; campos desconocidos se guardan en crudo pero **no** llegan al LLM.
 
+Obligatorios: timestamp, host_origen y las 6 métricas. El resto es opcional. La ventana de agrupación es deslizante desde la última alerta y solo aplica a incidentes no desbloqueados.
+
 Respuesta (siempre < 300 ms; el análisis ocurre en segundo plano):
 
 ```json
