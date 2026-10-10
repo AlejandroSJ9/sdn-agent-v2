@@ -132,7 +132,9 @@ def test_lectura_de_incidentes(cliente, cabecera_agente, cabecera_operador, payl
     assert incidente["t_ryu"].startswith("2026-10-10T20:31:05.123") and incidente["t_ryu"].endswith("Z")
     assert incidente["t_recibido"].endswith("Z")
 
-    assert cliente.get(f"/api/incidentes/{incidente_id}", headers=cabecera_operador).json() == incidente
+    detalle = cliente.get(f"/api/incidentes/{incidente_id}", headers=cabecera_operador).json()
+    assert detalle.pop("ultima_notificacion") is None  # el detalle agrega la notificación (Fase 3)
+    assert detalle == incidente
     assert cliente.get("/api/incidentes/999", headers=cabecera_operador).status_code == 404
     assert cliente.get("/api/incidentes").status_code == 401
     assert cliente.get("/api/incidentes", headers={"X-Operador-Token": "incorrecto"}).status_code == 401
@@ -144,5 +146,5 @@ def test_auditoria_integra_tras_las_alertas(cliente, cabecera_agente, cabecera_o
 
     respuesta = cliente.get("/api/auditoria/verificar", headers=cabecera_operador)
     assert respuesta.status_code == 200
-    # alerta_recibida + alerta_agrupada + explicacion_generada (pipeline de la Fase 2 del incidente nuevo)
-    assert respuesta.json() == {"integra": True, "filas": 3, "primera_rota": None}
+    # alerta_recibida + alerta_agrupada + explicacion_generada (Fase 2) + notificacion_omitida (Fase 3)
+    assert respuesta.json() == {"integra": True, "filas": 4, "primera_rota": None}

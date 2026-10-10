@@ -83,6 +83,9 @@ class Notificacion(Base):
     payload: Mapped[dict] = mapped_column(JSON)  # cuerpo de C3
     estado: Mapped[str] = mapped_column(String(20))
     intentos: Mapped[int] = mapped_column(Integer, default=0)
+    codigo_http: Mapped[int | None] = mapped_column(Integer)  # código HTTP final (null si no hubo respuesta)
+    error: Mapped[str | None] = mapped_column(String(200))  # texto corto; nunca incluye la URL
+    latencia_ms: Mapped[int | None] = mapped_column(Integer)
     ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora_utc)
 
 

@@ -1,13 +1,18 @@
 """Fixtures compartidas: payload de ejemplo C1, base SQLite temporal y cliente HTTP."""
 
+from types import SimpleNamespace
+
+import httpx
+import mock_ryu
 import pytest
 from fastapi.testclient import TestClient
 
 from app.api import routes_alertas
 from app.config import get_settings
 from app.db.database import iniciar_bd
+from app.integrations.ryu import ClienteRyu
 from app.main import app
-from app.services import pipeline
+from app.services import notificacion, operador, pipeline
 
 TOKEN_AGENTE = "token-agente-de-prueba"
 TOKEN_OPERADOR = "token-operador-de-prueba"
@@ -50,6 +55,8 @@ def bd_temporal(tmp_path, monkeypatch):
         "LLM_HABILITADO": "false",  # el pipeline usa reglas salvo que la prueba active el LLM falso
         "LLM_CUPO_DIARIO": "1000",
         "OPENROUTER_API_KEY": "",
+        "APPSCRIPT_URL": "",  # notificación "omitida" salvo que la prueba instale un Apps Script falso
+        "PANEL_URL": "http://localhost:8081",
     }
     for clave, valor in entorno.items():
         monkeypatch.setenv(clave, valor)
@@ -68,6 +75,48 @@ def _sin_llm_real(monkeypatch):
         pytest.fail("Una prueba intentó crear el cliente LLM real")
 
     monkeypatch.setattr(pipeline, "obtener_cliente_llm", _prohibido)
+
+
+@pytest.fixture(autouse=True)
+def _sin_appscript_real(monkeypatch):
+    """Ninguna prueba puede llegar al Apps Script real ni dormir entre reintentos."""
+
+    def _prohibido(peticion):
+        pytest.fail("Una prueba intentó llamar al Apps Script real")
+
+    monkeypatch.setattr(notificacion, "transporte_appscript", lambda: httpx.MockTransport(_prohibido))
+    monkeypatch.setattr(notificacion, "esperar_reintento", lambda segundos: None)
+
+
+def transporte_asgi(app_asgi) -> httpx.MockTransport:
+    """Transporte SÍNCRONO hacia una app ASGI en memoria (httpx.ASGITransport solo sirve con AsyncClient)."""
+    interno = TestClient(app_asgi)
+
+    def manejar(peticion: httpx.Request) -> httpx.Response:
+        respuesta = interno.request(peticion.method, str(peticion.url), headers=peticion.headers, content=peticion.content)
+        return httpx.Response(respuesta.status_code, headers=respuesta.headers, content=respuesta.content)
+
+    return httpx.MockTransport(manejar)
+
+
+@pytest.fixture(autouse=True)
+def _sin_ryu_real(monkeypatch):
+    """Ninguna prueba puede llegar al Ryu real."""
+
+    def _prohibido(peticion):
+        pytest.fail("Una prueba intentó llamar al Ryu real")
+
+    cliente_prohibido = ClienteRyu("http://ryu-real.invalido", "x", transporte=httpx.MockTransport(_prohibido))
+    monkeypatch.setattr(operador, "obtener_cliente_ryu", lambda: cliente_prohibido)
+
+
+@pytest.fixture
+def ryu_mock(monkeypatch):
+    """Mock de Ryu (tests/mock_ryu.py) en memoria, instalado como el Ryu de los servicios."""
+    app_mock = mock_ryu.crear_app(TOKEN_AGENTE)
+    cliente_ryu = ClienteRyu("http://ryu.test", TOKEN_AGENTE, transporte=transporte_asgi(app_mock))
+    monkeypatch.setattr(operador, "obtener_cliente_ryu", lambda: cliente_ryu)
+    return SimpleNamespace(app=app_mock, cliente=cliente_ryu, bloqueados=app_mock.state.bloqueados)
 
 
 @pytest.fixture

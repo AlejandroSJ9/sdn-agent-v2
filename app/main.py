@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.api import routes_alertas, salud
+from app.api import routes_alertas, routes_notificaciones, routes_operador, salud
 from app.config import get_settings
 from app.db.database import iniciar_bd
 
@@ -18,3 +18,5 @@ async def ciclo_vida(_app: FastAPI):
 app = FastAPI(title="SDN-Agent v2", version=salud.VERSION, lifespan=ciclo_vida)
 app.include_router(salud.router)
 app.include_router(routes_alertas.router)
+app.include_router(routes_notificaciones.router)
+app.include_router(routes_operador.router)

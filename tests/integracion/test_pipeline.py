@@ -137,8 +137,8 @@ def test_auditoria_integra_tras_el_pipeline(cliente, cabecera_agente, cabecera_o
     _alerta(cliente, cabecera_agente, payload_c1)
 
     verificacion = cliente.get("/api/auditoria/verificar", headers=cabecera_operador).json()
-    # 2 × (alerta_recibida + explicacion_generada)
-    assert verificacion == {"integra": True, "filas": 4, "primera_rota": None}
+    # 2 × (alerta_recibida + explicacion_generada + notificacion_omitida)
+    assert verificacion == {"integra": True, "filas": 6, "primera_rota": None}
 
 
 def test_cliente_openrouter_corta_en_el_tope_total_con_respuesta_lenta_por_partes():

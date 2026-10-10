@@ -1,12 +1,13 @@
 """Cliente de OpenRouter (chat completions) con httpx. Sin reintentos: si falla, decide el pipeline."""
 
 import json
-import threading
 import time
 from dataclasses import dataclass
 from typing import Protocol
 
 import httpx
+
+from app.integrations._tope import TopeSuperado, ejecutar_con_tope, post_hasta
 
 URL_OPENROUTER = "https://openrouter.ai/api/v1/chat/completions"
 
@@ -57,28 +58,15 @@ class ClienteOpenRouter:
         self._timeout = timeout
         self._transporte = transporte
 
-    def _post(self, http: httpx.Client, cuerpo: dict, limite: float) -> tuple[int, bytes]:
-        """POST leyendo el cuerpo por partes; corta en cuanto se pasa el instante `limite`."""
-        restante = limite - time.monotonic()
-        if restante <= 0:
-            raise LLMError("timeout", "tope total superado")
-        cabeceras = {"Authorization": f"Bearer {self._api_key}"}
-        with http.stream("POST", URL_OPENROUTER, json=cuerpo, headers=cabeceras, timeout=restante) as respuesta:
-            partes = []
-            for parte in respuesta.iter_bytes():
-                if time.monotonic() > limite:
-                    raise LLMError("timeout", "tope total superado")
-                partes.append(parte)
-            return respuesta.status_code, b"".join(partes)
-
     def _intercambio(self, cuerpo: dict, estado: dict, limite: float) -> tuple[int, bytes]:
+        cabeceras = {"Authorization": f"Bearer {self._api_key}"}
         with httpx.Client(transport=self._transporte) as http:
             estado["peticiones"] = 1
-            codigo, contenido = self._post(http, cuerpo, limite)
+            codigo, contenido = post_hasta(http, URL_OPENROUTER, cuerpo, cabeceras, limite)
             if codigo in (400, 422):  # el proveedor no acepta response_format: UNA repetición sin él
                 del cuerpo["response_format"]
                 estado["peticiones"] = 2
-                codigo, contenido = self._post(http, cuerpo, limite)
+                codigo, contenido = post_hasta(http, URL_OPENROUTER, cuerpo, cabeceras, limite)
         return codigo, contenido
 
     def completar(self, system: str, usuario: str) -> RespuestaLLM:
@@ -88,37 +76,21 @@ class ClienteOpenRouter:
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": usuario}],
             "response_format": {"type": "json_object"},
         }
-        # Tope TOTAL de `timeout` segundos para toda la llamada (incluido el reintento). Los timeouts de
-        # httpx son por operación, así que el intercambio corre en un hilo y aquí se espera como máximo
-        # `timeout`. Si se abandona, el hilo termina solo: revisa el mismo límite tras cada fragmento.
+        # Tope TOTAL de `timeout` segundos para toda la llamada, incluido el reintento (ver _tope.py).
         estado: dict = {"peticiones": 0}
-        resultado: dict = {}
         limite = time.monotonic() + self._timeout
-
-        def trabajar() -> None:
-            try:
-                resultado["ok"] = self._intercambio(cuerpo, estado, limite)
-            except Exception as error:
-                resultado["error"] = error
-
         inicio = time.perf_counter()
-        hilo = threading.Thread(target=trabajar, daemon=True, name="llm-openrouter")
-        hilo.start()
-        hilo.join(self._timeout)
+        try:
+            codigo, contenido_http = ejecutar_con_tope(
+                lambda: self._intercambio(cuerpo, estado, limite), self._timeout, "llm-openrouter"
+            )
+        except TopeSuperado as error:
+            raise LLMError("timeout", str(error), max(estado["peticiones"], 1)) from error
+        except httpx.TimeoutException as error:
+            raise LLMError("timeout", type(error).__name__, max(estado["peticiones"], 1)) from error
+        except httpx.HTTPError as error:
+            raise LLMError("error_llm", type(error).__name__, max(estado["peticiones"], 1)) from error
         peticiones = max(estado["peticiones"], 1)
-        if hilo.is_alive():
-            raise LLMError("timeout", f"tope total de {self._timeout} s superado", peticiones)
-        error = resultado.get("error")
-        if isinstance(error, LLMError):
-            error.peticiones = peticiones
-            raise error
-        if isinstance(error, httpx.TimeoutException):
-            raise LLMError("timeout", type(error).__name__, peticiones) from error
-        if isinstance(error, httpx.HTTPError):
-            raise LLMError("error_llm", type(error).__name__, peticiones) from error
-        if error is not None:
-            raise error
-        codigo, contenido_http = resultado["ok"]
         latencia_ms = int((time.perf_counter() - inicio) * 1000)
 
         if codigo != 200:

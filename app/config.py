@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     LLM_HABILITADO: bool = True
     LLM_CUPO_DIARIO: int = 1000
     APPSCRIPT_URL: str = ""
+    APPSCRIPT_TIMEOUT: float = 30  # segundos totales por intento (arranque en frío + MailApp)
+    PANEL_URL: str = "http://localhost:8081"
     DEDUP_SEGUNDOS: int = 60
     RATE_LIMIT_POR_MIN: int = 60
     DB_URL: str = "sqlite:///./sdn_agent.db"

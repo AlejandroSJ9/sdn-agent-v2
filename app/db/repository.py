@@ -7,7 +7,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from app.db.database import SesionLocal
-from app.db.models import Alerta, Auditoria, Incidente, UsoLlm
+from app.db.models import Alerta, Auditoria, Incidente, Notificacion, UsoLlm
 
 # El contador de alertas de un incidente se calcula; no se guarda en una columna.
 _contador_alertas = (
@@ -152,6 +152,39 @@ def registrar_uso_llm(fecha: str, peticiones_extra: int, tokens_entrada: int, to
 def peticiones_llm_del_dia(fecha: str) -> int:
     with SesionLocal() as sesion:
         return sesion.scalar(select(UsoLlm.peticiones).where(UsoLlm.fecha == fecha)) or 0
+
+
+def guardar_notificacion(
+    incidente_id: int | None, tipo: str, payload: dict, resultado: dict[str, Any], ts: datetime
+) -> int:
+    """resultado: estado, intentos, codigo_http, error, latencia_ms (claves = columnas)."""
+    with SesionLocal.begin() as sesion:
+        notificacion = Notificacion(incidente_id=incidente_id, tipo=tipo, payload=payload, ts=ts, **resultado)
+        sesion.add(notificacion)
+        sesion.flush()
+        return notificacion.id
+
+
+def marcar_notificado(incidente_id: int, ts: datetime) -> None:
+    """Solo el PRIMER envío exitoso marca t_notificado (un reenvío no altera la métrica)."""
+    with SesionLocal.begin() as sesion:
+        sesion.execute(
+            update(Incidente)
+            .where(Incidente.id == incidente_id, Incidente.t_notificado.is_(None))
+            .values(t_notificado=ts)
+        )
+
+
+def ultima_notificacion(incidente_id: int) -> dict[str, Any] | None:
+    consulta = (
+        select(Notificacion.estado, Notificacion.intentos, Notificacion.ts)
+        .where(Notificacion.incidente_id == incidente_id)
+        .order_by(Notificacion.id.desc())
+        .limit(1)
+    )
+    with SesionLocal() as sesion:
+        fila = sesion.execute(consulta).mappings().first()
+    return dict(fila) if fila else None
 
 
 def ultimo_hash_auditoria() -> str | None:

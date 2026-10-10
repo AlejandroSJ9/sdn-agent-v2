@@ -10,6 +10,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, 
 
 from app.config import get_settings
 from app.schemas.alerta import AlertaEntrada, AlertaRespuesta, IncidenteSalida
+from app.schemas.notificacion import IncidenteDetalle
 from app.services import alertas, auditoria
 
 router = APIRouter(prefix="/api")
@@ -90,7 +91,7 @@ def listar_incidentes(
 
 
 @router.get("/incidentes/{incidente_id}", dependencies=[Depends(verificar_token_operador)])
-def obtener_incidente(incidente_id: int) -> IncidenteSalida:
+def obtener_incidente(incidente_id: int) -> IncidenteDetalle:
     incidente = alertas.obtener_incidente(incidente_id)
     if incidente is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Incidente no encontrado")

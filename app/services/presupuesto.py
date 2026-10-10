@@ -4,7 +4,7 @@ import threading
 from datetime import datetime, timezone
 
 from app.config import get_settings
-from app.db import repository
+from app.db import repository, repository_operador
 
 # Mismo criterio que en la Fase 1: un lock basta porque el agente corre en un solo proceso.
 _candado = threading.Lock()
@@ -31,3 +31,16 @@ def registrar_uso(tokens_in: int, tokens_out: int, latencia_ms: int, exito: bool
     """
     with _candado:
         repository.registrar_uso_llm(_hoy_utc(), max(peticiones - 1, 0), tokens_in, tokens_out, fallida=not exito)
+
+
+def estado_cupo() -> dict:
+    fecha = _hoy_utc()
+    uso = repository_operador.uso_llm_del_dia(fecha) or {"peticiones": 0, "fallidas": 0}
+    cupo = get_settings().LLM_CUPO_DIARIO
+    return {
+        "fecha": fecha,
+        "usadas": uso["peticiones"],
+        "cupo": cupo,
+        "restantes": max(cupo - uso["peticiones"], 0),
+        "fallidas": uso["fallidas"],
+    }

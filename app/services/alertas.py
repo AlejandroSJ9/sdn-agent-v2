@@ -5,10 +5,10 @@ from collections.abc import Callable
 from datetime import datetime, timezone
 from typing import Any
 
-from app.config import get_settings
 from app.db import repository
 from app.schemas.alerta import AlertaEntrada, IncidenteSalida
-from app.services import auditoria, pipeline
+from app.schemas.notificacion import IncidenteDetalle
+from app.services import auditoria, configuracion, pipeline
 
 # Buscar-o-crear debe ser atómico: sin el lock, dos alertas simultáneas del mismo host abrirían
 # dos incidentes (y dos llamadas al LLM). Basta porque el agente corre en un solo proceso.
@@ -22,7 +22,7 @@ def recibir(alerta: AlertaEntrada, programar: Callable[..., Any]) -> int:
     """
     t_recibido = datetime.now(timezone.utc)
     with _candado:
-        incidente_id = repository.buscar_incidente_abierto_reciente(alerta.host_origen, get_settings().DEDUP_SEGUNDOS)
+        incidente_id = repository.buscar_incidente_abierto_reciente(alerta.host_origen, configuracion.dedup_segundos())
         if incidente_id is not None:
             contador = repository.agregar_alerta_a_incidente(incidente_id, alerta.crudo, alerta.timestamp, t_recibido)
             auditoria.registrar(
@@ -47,6 +47,8 @@ def listar_incidentes(limite: int, offset: int) -> list[IncidenteSalida]:
     return [IncidenteSalida.model_validate(fila) for fila in repository.listar_incidentes(limite, offset)]
 
 
-def obtener_incidente(incidente_id: int) -> IncidenteSalida | None:
+def obtener_incidente(incidente_id: int) -> IncidenteDetalle | None:
     fila = repository.obtener_incidente(incidente_id)
-    return IncidenteSalida.model_validate(fila) if fila else None
+    if fila is None:
+        return None
+    return IncidenteDetalle.model_validate({**fila, "ultima_notificacion": repository.ultima_notificacion(incidente_id)})

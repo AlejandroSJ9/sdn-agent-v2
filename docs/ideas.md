@@ -24,3 +24,11 @@ Anotar aquí (una línea) lo que no pide la fase actual.
 - Fase 4: incluir umbrales vigentes de Ryu dentro de <datos_red> para que las evidencias comparen valor vs umbral.
 - **[Impacto MEDIO] Si el agente se reinicia con pipelines pendientes, esos incidentes quedan sin explicar.** `BackgroundTasks` vive en memoria. Solución: al arrancar, buscar incidentes con `t_explicado IS NULL` y reprocesarlos (cuidando el cupo).
 - **[Impacto BAJO] `scripts/probar_llm.py` no descuenta su llamada del cupo.** Es deliberado (no toca la BD de producción), pero cada ejecución consume una petición real de OpenRouter que `uso_llm` no ve.
+
+## Sugerencias surgidas en la Fase 3
+
+- **[Impacto BAJO] `/api/notificaciones/prueba` y `/api/incidentes/{id}/reenviar` son síncronos.** Si Apps Script falla de forma reintentable, la respuesta tarda hasta ~54 s (4 intentos de 10 s + esperas de 2/4/8 s) y ocupa un hilo del servidor. Es una acción manual del operador; si molesta en el panel (Fase 5), pasar el envío a `BackgroundTasks` y devolver 202, informando el resultado por WebSocket.
+
+## Sugerencias surgidas en la Fase 4
+
+- **[Impacto BAJO] Si la BD falla justo después de que Ryu confirmó el desbloqueo, el host queda libre sin registro.** `desbloquear_host` llama primero a Ryu (como pide la fase: si Ryu falla, la BD no se toca), pero el caso inverso (Ryu OK y error al marcar `t_desbloqueado` o auditar) devolvería 500 aunque el host ya esté desbloqueado. Mitigación: capturar ese error, registrar `host_desbloqueado_sin_registro` en el log con la IP y responder 200 con una advertencia para que el operador lo sepa.
