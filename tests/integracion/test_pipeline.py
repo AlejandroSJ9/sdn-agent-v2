@@ -1,6 +1,7 @@
 """Pipeline de explicación con un LLM FALSO (sin red), disparado por POST /api/alertas."""
 
 import json
+import time
 
 import httpx
 import pytest
@@ -138,6 +139,26 @@ def test_auditoria_integra_tras_el_pipeline(cliente, cabecera_agente, cabecera_o
     verificacion = cliente.get("/api/auditoria/verificar", headers=cabecera_operador).json()
     # 2 × (alerta_recibida + explicacion_generada)
     assert verificacion == {"integra": True, "filas": 4, "primera_rota": None}
+
+
+def test_cliente_openrouter_corta_en_el_tope_total_con_respuesta_lenta_por_partes():
+    """Cada fragmento llega antes de cualquier timeout por operación, pero el total superaría el tope."""
+
+    def goteo():
+        for _ in range(20):
+            time.sleep(0.1)
+            yield b" "
+
+    cliente = ClienteOpenRouter(
+        "clave", "modelo-x", 0.5, transporte=httpx.MockTransport(lambda _: httpx.Response(200, content=goteo()))
+    )
+    inicio = time.perf_counter()
+    with pytest.raises(LLMError) as error:
+        cliente.completar("system", "usuario")
+    duracion = time.perf_counter() - inicio
+
+    assert error.value.motivo == "timeout"
+    assert 0.45 <= duracion < 0.7  # tope 0.5 s; la respuesta completa tardaría 2 s
 
 
 def test_cliente_openrouter_repite_una_vez_sin_response_format_y_extrae_el_json():

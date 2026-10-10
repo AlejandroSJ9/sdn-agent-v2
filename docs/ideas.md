@@ -22,6 +22,5 @@ Anotar aquí (una línea) lo que no pide la fase actual.
 ## Sugerencias surgidas en la Fase 2
 
 - Fase 4: incluir umbrales vigentes de Ryu dentro de <datos_red> para que las evidencias comparen valor vs umbral.
-- **[Impacto MEDIO] `LLM_TIMEOUT` no es un tope total.** El `timeout` de httpx aplica por operación (conectar, leer cada fragmento), no a la petición completa, y el reintento sin `response_format` puede duplicarlo. Una respuesta lenta que gotea bytes puede superar los 20 s sin disparar el timeout. Solución sin dependencias: medir el tiempo transcurrido y abortar el reintento si ya se gastó el presupuesto de tiempo.
 - **[Impacto MEDIO] Si el agente se reinicia con pipelines pendientes, esos incidentes quedan sin explicar.** `BackgroundTasks` vive en memoria. Solución: al arrancar, buscar incidentes con `t_explicado IS NULL` y reprocesarlos (cuidando el cupo).
 - **[Impacto BAJO] `scripts/probar_llm.py` no descuenta su llamada del cupo.** Es deliberado (no toca la BD de producción), pero cada ejecución consume una petición real de OpenRouter que `uso_llm` no ve.
