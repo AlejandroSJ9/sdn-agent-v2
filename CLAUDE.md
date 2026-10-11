@@ -63,7 +63,7 @@ Dependencias permitidas: `api → services → (integrations, db)`. Nunca al rev
 
 ## 5. Presupuesto del LLM (crítico)
 
-OpenRouter `meta-llama/llama-3.1-8b-instruct:free` con créditos comprados: **1.000 peticiones/día** (sin créditos serían 50).
+OpenRouter `meta-llama/llama-3.1-8b-instruct` con créditos comprados: **1.000 peticiones/día** (sin créditos serían 50).
 - Toda llamada pasa por `services/presupuesto.py`, que cuenta en la base de datos el uso del día.
 - Si se agota, el LLM falla, tarda más de `LLM_TIMEOUT` o devuelve JSON inválido → **respaldo por reglas** (`services/explicacion_reglas.py`). El incidente se marca `fuente_explicacion = "reglas"`.
 - Alertas repetidas del mismo host dentro de `DEDUP_SEGUNDOS` se agrupan en el mismo incidente sin nueva llamada al LLM.
