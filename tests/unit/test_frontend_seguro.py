@@ -8,7 +8,7 @@ import pytest
 WEB = Path(__file__).resolve().parents[2] / "app" / "web"
 PROHIBIDOS_JS = ("innerHTML", "outerHTML", "insertAdjacentHTML", "eval(", "document.write")
 MODULOS = {"api.js", "ws.js", "estado.js", "bloqueados.js", "incidentes.js", "umbrales.js", "timeline.js",
-           "auditoria.js", "main.js", "dom.js"}
+           "auditoria.js", "main.js", "dom.js", "laboratorio.js", "pruebas.js"}  # Fase 6: + laboratorio y pruebas
 EXTERNO = re.compile(r"""(?:src|href|action)\s*=\s*["']?\s*(?:https?:)?//""", re.IGNORECASE)
 
 

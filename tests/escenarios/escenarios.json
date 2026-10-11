@@ -1,0 +1,798 @@
+{
+  "version": 2,
+  "origen": "Migrado de docs/referencia/escenarios_v1.json (18 casos, etiquetas 'esperado' sin cambios).",
+  "notas": [
+    "payload sigue C1; el timestamp es de relleno: el laboratorio lo reemplaza por la hora actual en cada envío.",
+    "M5_flujos_east_west = (M5_count >= 5); umbrales_superados calculados con 'umbrales' de abajo (los de la v1).",
+    "contexto_v1 es solo documentación: la v2 no recibe contexto y nunca se envía.",
+    "Los casos con decidible_v2=false se ejecutan pero no cuentan en la exactitud; se reportan aparte.",
+    "Se omiten 'niveles' y 'confianza_minima' de la v1: no existen en el contrato C4."
+  ],
+  "umbrales": {
+    "M1": "> 20",
+    "M2": "> 15",
+    "M3": "SMB 445 < 5 s y > 512000 B",
+    "M4": "> 200",
+    "M5": ">= 5"
+  },
+  "casos": [
+    {
+      "id": "AT-01",
+      "conjunto": "desarrollo",
+      "clase": "ataque",
+      "nombre": "Conti: despliegue con PsExec por SMB",
+      "justificacion": "Copia rapida a recursos administrativos mas conexiones directas entre equipos de usuario, sin whitelist ni historial que lo explique.",
+      "esperado": {
+        "veredicto": "confirmado",
+        "aceptables": [
+          "confirmado"
+        ]
+      },
+      "decidible_v2": true,
+      "motivo_no_decidible": null,
+      "alertas_a_enviar": 1,
+      "payload": {
+        "timestamp": "2026-01-01T00:00:00Z",
+        "host_origen": "10.0.10.3",
+        "metricas": {
+          "M1_nuevos_flujos_por_30s": 24,
+          "M2_destinos_unicos_por_30s": 9,
+          "M3_smb_anomalo": true,
+          "M4_packet_in_por_min": 60.0,
+          "M5_flujos_east_west": true,
+          "M5_count": 8
+        },
+        "umbrales_superados": [
+          "M1",
+          "M3",
+          "M5"
+        ]
+      },
+      "contexto_v1": {}
+    },
+    {
+      "id": "AT-02",
+      "conjunto": "desarrollo",
+      "clase": "ataque",
+      "nombre": "LockBit 3.0: propagacion con PsExec y SMB",
+      "justificacion": "Cuatro metricas, dos de ellas de alta especificidad, sin contexto que lo explique.",
+      "esperado": {
+        "veredicto": "confirmado",
+        "aceptables": [
+          "confirmado"
+        ]
+      },
+      "decidible_v2": true,
+      "motivo_no_decidible": null,
+      "alertas_a_enviar": 1,
+      "payload": {
+        "timestamp": "2026-01-01T00:00:00Z",
+        "host_origen": "10.0.10.5",
+        "metricas": {
+          "M1_nuevos_flujos_por_30s": 38,
+          "M2_destinos_unicos_por_30s": 17,
+          "M3_smb_anomalo": true,
+          "M4_packet_in_por_min": 140.0,
+          "M5_flujos_east_west": true,
+          "M5_count": 12
+        },
+        "umbrales_superados": [
+          "M1",
+          "M2",
+          "M3",
+          "M5"
+        ]
+      },
+      "contexto_v1": {}
+    },
+    {
+      "id": "AT-03",
+      "conjunto": "desarrollo",
+      "clase": "ataque",
+      "nombre": "Black Basta: escaneo con netscan y movimiento lateral",
+      "justificacion": "Escaneo amplio de puertos de administracion seguido de conexiones directas entre usuarios, desde un equipo sin whitelist. Sin copia sospechosa, 'indeterminado' es defendible: mantiene el bloqueo y pide revision.",
+      "esperado": {
+        "veredicto": "confirmado",
+        "aceptables": [
+          "confirmado",
+          "indeterminado"
+        ]
+      },
+      "decidible_v2": true,
+      "motivo_no_decidible": null,
+      "alertas_a_enviar": 1,
+      "payload": {
+        "timestamp": "2026-01-01T00:00:00Z",
+        "host_origen": "10.0.10.2",
+        "metricas": {
+          "M1_nuevos_flujos_por_30s": 46,
+          "M2_destinos_unicos_por_30s": 31,
+          "M3_smb_anomalo": false,
+          "M4_packet_in_por_min": 180.0,
+          "M5_flujos_east_west": true,
+          "M5_count": 6
+        },
+        "umbrales_superados": [
+          "M1",
+          "M2",
+          "M5"
+        ]
+      },
+      "contexto_v1": {}
+    },
+    {
+      "id": "AT-04",
+      "conjunto": "desarrollo",
+      "clase": "ataque",
+      "nombre": "WannaCry: gusano por SMBv1 (EternalBlue)",
+      "justificacion": "Cuatro metricas muy por encima de su umbral, con conexiones directas a 17 pares, desde un equipo sin whitelist.",
+      "esperado": {
+        "veredicto": "confirmado",
+        "aceptables": [
+          "confirmado"
+        ]
+      },
+      "decidible_v2": true,
+      "motivo_no_decidible": null,
+      "alertas_a_enviar": 1,
+      "payload": {
+        "timestamp": "2026-01-01T00:00:00Z",
+        "host_origen": "10.0.10.4",
+        "metricas": {
+          "M1_nuevos_flujos_por_30s": 64,
+          "M2_destinos_unicos_por_30s": 48,
+          "M3_smb_anomalo": false,
+          "M4_packet_in_por_min": 520.0,
+          "M5_flujos_east_west": true,
+          "M5_count": 17
+        },
+        "umbrales_superados": [
+          "M1",
+          "M2",
+          "M4",
+          "M5"
+        ]
+      },
+      "contexto_v1": {}
+    },
+    {
+      "id": "AT-05",
+      "conjunto": "validacion",
+      "clase": "ataque",
+      "nombre": "NotPetya: PsExec y WMIC con credenciales robadas",
+      "justificacion": "Copia rapida mas once conexiones directas entre usuarios, sin whitelist.",
+      "esperado": {
+        "veredicto": "confirmado",
+        "aceptables": [
+          "confirmado"
+        ]
+      },
+      "decidible_v2": true,
+      "motivo_no_decidible": null,
+      "alertas_a_enviar": 1,
+      "payload": {
+        "timestamp": "2026-01-01T00:00:00Z",
+        "host_origen": "10.0.10.2",
+        "metricas": {
+          "M1_nuevos_flujos_por_30s": 33,
+          "M2_destinos_unicos_por_30s": 14,
+          "M3_smb_anomalo": true,
+          "M4_packet_in_por_min": 150.0,
+          "M5_flujos_east_west": true,
+          "M5_count": 11
+        },
+        "umbrales_superados": [
+          "M1",
+          "M3",
+          "M5"
+        ]
+      },
+      "contexto_v1": {}
+    },
+    {
+      "id": "AT-06",
+      "conjunto": "validacion",
+      "clase": "ataque",
+      "nombre": "Ejecucion remota por WMI sin copia de archivos",
+      "justificacion": "Mismas metricas que LG-03 (soporte tecnico con PsExec) pero el equipo NO esta en la whitelist y no tiene historial. Sin esa explicacion, siete conexiones directas entre usuarios son sospechosas.",
+      "esperado": {
+        "veredicto": "confirmado",
+        "aceptables": [
+          "confirmado",
+          "indeterminado"
+        ]
+      },
+      "decidible_v2": true,
+      "motivo_no_decidible": null,
+      "alertas_a_enviar": 1,
+      "payload": {
+        "timestamp": "2026-01-01T00:00:00Z",
+        "host_origen": "10.0.10.1",
+        "metricas": {
+          "M1_nuevos_flujos_por_30s": 23,
+          "M2_destinos_unicos_por_30s": 8,
+          "M3_smb_anomalo": false,
+          "M4_packet_in_por_min": 240.0,
+          "M5_flujos_east_west": true,
+          "M5_count": 7
+        },
+        "umbrales_superados": [
+          "M1",
+          "M4",
+          "M5"
+        ]
+      },
+      "contexto_v1": {}
+    },
+    {
+      "id": "AT-07",
+      "conjunto": "validacion",
+      "clase": "ataque",
+      "nombre": "Movimiento lateral por RDP tras escaneo",
+      "justificacion": "Todas las senales estan justo en el umbral: un analista puede confirmar o pedir revision. Lo que no es aceptable es liberar el equipo.",
+      "esperado": {
+        "veredicto": "confirmado",
+        "aceptables": [
+          "confirmado",
+          "indeterminado"
+        ]
+      },
+      "decidible_v2": true,
+      "motivo_no_decidible": null,
+      "alertas_a_enviar": 1,
+      "payload": {
+        "timestamp": "2026-01-01T00:00:00Z",
+        "host_origen": "10.0.10.1",
+        "metricas": {
+          "M1_nuevos_flujos_por_30s": 21,
+          "M2_destinos_unicos_por_30s": 16,
+          "M3_smb_anomalo": false,
+          "M4_packet_in_por_min": 80.0,
+          "M5_flujos_east_west": true,
+          "M5_count": 5
+        },
+        "umbrales_superados": [
+          "M1",
+          "M2",
+          "M5"
+        ]
+      },
+      "contexto_v1": {}
+    },
+    {
+      "id": "AT-08",
+      "conjunto": "desarrollo",
+      "clase": "ataque",
+      "nombre": "Equipo de administracion comprometido (VLAN ADM)",
+      "justificacion": "Ataque claro en la red de administracion: el prompt exige nivel 3 (solo avisar, sin acciones automaticas).",
+      "esperado": {
+        "veredicto": "confirmado",
+        "aceptables": [
+          "confirmado"
+        ]
+      },
+      "decidible_v2": true,
+      "motivo_no_decidible": null,
+      "alertas_a_enviar": 1,
+      "payload": {
+        "timestamp": "2026-01-01T00:00:00Z",
+        "host_origen": "10.0.20.3",
+        "metricas": {
+          "M1_nuevos_flujos_por_30s": 29,
+          "M2_destinos_unicos_por_30s": 12,
+          "M3_smb_anomalo": true,
+          "M4_packet_in_por_min": 90.0,
+          "M5_flujos_east_west": true,
+          "M5_count": 9
+        },
+        "umbrales_superados": [
+          "M1",
+          "M3",
+          "M5"
+        ]
+      },
+      "contexto_v1": {}
+    },
+    {
+      "id": "AT-09",
+      "conjunto": "desarrollo",
+      "clase": "ataque",
+      "nombre": "Propagacion: segundo equipo de la cadena",
+      "justificacion": "Por si sola la alerta seria dudosa, pero el equipo fue senalado en riesgo por un ataque confirmado hace 8 minutos. Tratarlo como 'indeterminado' ignora la correlacion que pide NIST.",
+      "esperado": {
+        "veredicto": "confirmado",
+        "aceptables": [
+          "confirmado"
+        ]
+      },
+      "decidible_v2": false,
+      "motivo_no_decidible": "Depende de la correlación con un ataque confirmado hace 8 min (incidentes_previos, hosts_riesgo); la v2 no recibe contexto.",
+      "alertas_a_enviar": 1,
+      "payload": {
+        "timestamp": "2026-01-01T00:00:00Z",
+        "host_origen": "10.0.10.4",
+        "metricas": {
+          "M1_nuevos_flujos_por_30s": 21,
+          "M2_destinos_unicos_por_30s": 6,
+          "M3_smb_anomalo": false,
+          "M4_packet_in_por_min": 230.0,
+          "M5_flujos_east_west": true,
+          "M5_count": 5
+        },
+        "umbrales_superados": [
+          "M1",
+          "M4",
+          "M5"
+        ]
+      },
+      "contexto_v1": {
+        "incidentes_previos": [
+          {
+            "host": "10.0.10.3",
+            "minutos_antes": 8,
+            "veredicto": "confirmado",
+            "confianza": 92,
+            "metricas": [
+              "M1",
+              "M3",
+              "M5"
+            ]
+          }
+        ],
+        "hosts_riesgo": [
+          {
+            "ip": "10.0.10.4",
+            "origen": "10.0.10.3",
+            "minutos_antes": 8
+          }
+        ],
+        "nivel_alerta": "ALTO"
+      }
+    },
+    {
+      "id": "AT-10",
+      "conjunto": "desarrollo",
+      "clase": "ataque",
+      "nombre": "Propagacion masiva: quinto equipo en 30 minutos",
+      "justificacion": "Con cinco equipos afectados, el prompt exige nivel 3.",
+      "esperado": {
+        "veredicto": "confirmado",
+        "aceptables": [
+          "confirmado"
+        ]
+      },
+      "decidible_v2": false,
+      "motivo_no_decidible": "El contexto trae 4 incidentes previos confirmados que justifican la etiqueta; la v2 no recibe contexto.",
+      "alertas_a_enviar": 1,
+      "payload": {
+        "timestamp": "2026-01-01T00:00:00Z",
+        "host_origen": "10.0.10.5",
+        "metricas": {
+          "M1_nuevos_flujos_por_30s": 27,
+          "M2_destinos_unicos_por_30s": 9,
+          "M3_smb_anomalo": true,
+          "M4_packet_in_por_min": 110.0,
+          "M5_flujos_east_west": true,
+          "M5_count": 7
+        },
+        "umbrales_superados": [
+          "M1",
+          "M3",
+          "M5"
+        ]
+      },
+      "contexto_v1": {
+        "incidentes_previos": [
+          {
+            "host": "10.0.10.1",
+            "minutos_antes": 26,
+            "veredicto": "confirmado",
+            "confianza": 93,
+            "metricas": [
+              "M1",
+              "M3",
+              "M5"
+            ]
+          },
+          {
+            "host": "10.0.10.2",
+            "minutos_antes": 19,
+            "veredicto": "confirmado",
+            "confianza": 91,
+            "metricas": [
+              "M1",
+              "M3",
+              "M5"
+            ]
+          },
+          {
+            "host": "10.0.10.3",
+            "minutos_antes": 12,
+            "veredicto": "confirmado",
+            "confianza": 94,
+            "metricas": [
+              "M1",
+              "M2",
+              "M3",
+              "M5"
+            ]
+          },
+          {
+            "host": "10.0.10.4",
+            "minutos_antes": 5,
+            "veredicto": "confirmado",
+            "confianza": 92,
+            "metricas": [
+              "M1",
+              "M3",
+              "M5"
+            ]
+          }
+        ],
+        "nivel_alerta": "CRITICO"
+      }
+    },
+    {
+      "id": "LG-01",
+      "conjunto": "desarrollo",
+      "clase": "legitimo",
+      "nombre": "SCCM: instalacion del cliente por client push",
+      "justificacion": "Las metricas son de ataque, pero el equipo esta en la whitelist como servidor SCCM, y Microsoft documenta exactamente este trafico. Para saberlo, el agente debe pedir historial_host (que incluye en_whitelist). 'indeterminado' es aceptable: mantiene el bloqueo pero pide revision.",
+      "esperado": {
+        "veredicto": "falso_positivo",
+        "aceptables": [
+          "falso_positivo",
+          "indeterminado"
+        ]
+      },
+      "decidible_v2": false,
+      "motivo_no_decidible": "Solo la whitelist (servidor SCCM) lo distingue de un ataque; la v2 no recibe whitelist.",
+      "alertas_a_enviar": 1,
+      "payload": {
+        "timestamp": "2026-01-01T00:00:00Z",
+        "host_origen": "10.0.20.2",
+        "metricas": {
+          "M1_nuevos_flujos_por_30s": 25,
+          "M2_destinos_unicos_por_30s": 16,
+          "M3_smb_anomalo": true,
+          "M4_packet_in_por_min": 120.0,
+          "M5_flujos_east_west": true,
+          "M5_count": 8
+        },
+        "umbrales_superados": [
+          "M1",
+          "M2",
+          "M3",
+          "M5"
+        ]
+      },
+      "contexto_v1": {
+        "whitelist": [
+          {
+            "ip": "10.0.20.2",
+            "razon": "Servidor de sitio de Configuration Manager (SCCM); hace client push a los equipos de la red ADM"
+          }
+        ]
+      }
+    },
+    {
+      "id": "LG-02",
+      "conjunto": "desarrollo",
+      "clase": "legitimo",
+      "nombre": "Escaneo autenticado de vulnerabilidades (Nessus)",
+      "justificacion": "Par de AM-01: mismas metricas, pero este equipo esta en la whitelist como escaner. Sin consultarla, el agente no puede distinguirlos.",
+      "esperado": {
+        "veredicto": "falso_positivo",
+        "aceptables": [
+          "falso_positivo",
+          "indeterminado"
+        ]
+      },
+      "decidible_v2": false,
+      "motivo_no_decidible": "Mismas métricas que AM-01; solo la whitelist (escáner Nessus) lo distingue; la v2 no recibe whitelist.",
+      "alertas_a_enviar": 1,
+      "payload": {
+        "timestamp": "2026-01-01T00:00:00Z",
+        "host_origen": "10.0.20.4",
+        "metricas": {
+          "M1_nuevos_flujos_por_30s": 88,
+          "M2_destinos_unicos_por_30s": 52,
+          "M3_smb_anomalo": false,
+          "M4_packet_in_por_min": 640.0,
+          "M5_flujos_east_west": true,
+          "M5_count": 34
+        },
+        "umbrales_superados": [
+          "M1",
+          "M2",
+          "M4",
+          "M5"
+        ]
+      },
+      "contexto_v1": {
+        "whitelist": [
+          {
+            "ip": "10.0.20.4",
+            "razon": "Escaner de vulnerabilidades Tenable Nessus; escaneo autenticado semanal"
+          }
+        ]
+      }
+    },
+    {
+      "id": "LG-03",
+      "conjunto": "validacion",
+      "clase": "legitimo",
+      "nombre": "Soporte tecnico con PsExec",
+      "justificacion": "Par de AT-06: metricas casi iguales, pero el equipo esta en la whitelist de la mesa de ayuda.",
+      "esperado": {
+        "veredicto": "falso_positivo",
+        "aceptables": [
+          "falso_positivo",
+          "indeterminado"
+        ]
+      },
+      "decidible_v2": false,
+      "motivo_no_decidible": "Mismas métricas que AT-06; solo la whitelist (mesa de ayuda) lo distingue; la v2 no recibe whitelist.",
+      "alertas_a_enviar": 1,
+      "payload": {
+        "timestamp": "2026-01-01T00:00:00Z",
+        "host_origen": "10.0.20.5",
+        "metricas": {
+          "M1_nuevos_flujos_por_30s": 22,
+          "M2_destinos_unicos_por_30s": 7,
+          "M3_smb_anomalo": false,
+          "M4_packet_in_por_min": 215.0,
+          "M5_flujos_east_west": true,
+          "M5_count": 6
+        },
+        "umbrales_superados": [
+          "M1",
+          "M4",
+          "M5"
+        ]
+      },
+      "contexto_v1": {
+        "whitelist": [
+          {
+            "ip": "10.0.20.5",
+            "razon": "Estacion de la mesa de ayuda; uso autorizado de PsTools"
+          }
+        ]
+      }
+    },
+    {
+      "id": "LG-04",
+      "conjunto": "desarrollo",
+      "clase": "legitimo",
+      "nombre": "Inventario con PowerShell Remoting",
+      "justificacion": "Patron de administracion remota documentado por Microsoft, desde un equipo en la whitelist.",
+      "esperado": {
+        "veredicto": "falso_positivo",
+        "aceptables": [
+          "falso_positivo",
+          "indeterminado"
+        ]
+      },
+      "decidible_v2": false,
+      "motivo_no_decidible": "Solo la whitelist (equipo del administrador) lo distingue; la v2 no recibe whitelist.",
+      "alertas_a_enviar": 1,
+      "payload": {
+        "timestamp": "2026-01-01T00:00:00Z",
+        "host_origen": "10.0.10.5",
+        "metricas": {
+          "M1_nuevos_flujos_por_30s": 34,
+          "M2_destinos_unicos_por_30s": 22,
+          "M3_smb_anomalo": false,
+          "M4_packet_in_por_min": 150.0,
+          "M5_flujos_east_west": true,
+          "M5_count": 22
+        },
+        "umbrales_superados": [
+          "M1",
+          "M2",
+          "M5"
+        ]
+      },
+      "contexto_v1": {
+        "whitelist": [
+          {
+            "ip": "10.0.10.5",
+            "razon": "Equipo del administrador de sistemas; tareas de inventario con PowerShell Remoting"
+          }
+        ]
+      }
+    },
+    {
+      "id": "LG-05",
+      "conjunto": "validacion",
+      "clase": "legitimo",
+      "nombre": "Tarea programada recurrente ya revisada",
+      "justificacion": "Solo senales debiles, y el historial del equipo (que el agente puede pedir) muestra la misma alerta revisada tres veces como falso positivo, una vez por semana.",
+      "esperado": {
+        "veredicto": "falso_positivo",
+        "aceptables": [
+          "falso_positivo",
+          "indeterminado"
+        ]
+      },
+      "decidible_v2": false,
+      "motivo_no_decidible": "Depende del historial de 3 falsos positivos semanales; la v2 no recibe historial.",
+      "alertas_a_enviar": 1,
+      "payload": {
+        "timestamp": "2026-01-01T00:00:00Z",
+        "host_origen": "10.0.10.1",
+        "metricas": {
+          "M1_nuevos_flujos_por_30s": 22,
+          "M2_destinos_unicos_por_30s": 17,
+          "M3_smb_anomalo": false,
+          "M4_packet_in_por_min": 212.0,
+          "M5_flujos_east_west": false,
+          "M5_count": 2
+        },
+        "umbrales_superados": [
+          "M1",
+          "M2",
+          "M4"
+        ]
+      },
+      "contexto_v1": {
+        "incidentes_previos": [
+          {
+            "host": "10.0.10.1",
+            "minutos_antes": 30240,
+            "veredicto": "falso_positivo",
+            "confianza": 72,
+            "metricas": [
+              "M1",
+              "M2",
+              "M4"
+            ]
+          },
+          {
+            "host": "10.0.10.1",
+            "minutos_antes": 20160,
+            "veredicto": "falso_positivo",
+            "confianza": 75,
+            "metricas": [
+              "M1",
+              "M2",
+              "M4"
+            ]
+          },
+          {
+            "host": "10.0.10.1",
+            "minutos_antes": 10080,
+            "veredicto": "falso_positivo",
+            "confianza": 74,
+            "metricas": [
+              "M1",
+              "M2",
+              "M4"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "AM-01",
+      "conjunto": "desarrollo",
+      "clase": "ambiguo",
+      "nombre": "Escaneo amplio desde un equipo desconocido",
+      "justificacion": "Sin whitelist ni historial, un escaneo autorizado y uno malicioso se ven igual. Mantener el bloqueo (confirmado o indeterminado) es correcto; liberarlo como falso_positivo no lo es.",
+      "esperado": {
+        "veredicto": "indeterminado",
+        "aceptables": [
+          "indeterminado",
+          "confirmado"
+        ]
+      },
+      "decidible_v2": true,
+      "motivo_no_decidible": null,
+      "alertas_a_enviar": 1,
+      "payload": {
+        "timestamp": "2026-01-01T00:00:00Z",
+        "host_origen": "10.0.10.4",
+        "metricas": {
+          "M1_nuevos_flujos_por_30s": 85,
+          "M2_destinos_unicos_por_30s": 50,
+          "M3_smb_anomalo": false,
+          "M4_packet_in_por_min": 610.0,
+          "M5_flujos_east_west": true,
+          "M5_count": 30
+        },
+        "umbrales_superados": [
+          "M1",
+          "M2",
+          "M4",
+          "M5"
+        ]
+      },
+      "contexto_v1": {}
+    },
+    {
+      "id": "AM-02",
+      "conjunto": "validacion",
+      "clase": "ambiguo",
+      "nombre": "Solo senales debiles en el limite, sin historial",
+      "justificacion": "Nada de alta especificidad y ningun contexto: no hay base para confirmar un ataque, pero tampoco para descartarlo con seguridad.",
+      "esperado": {
+        "veredicto": "indeterminado",
+        "aceptables": [
+          "indeterminado",
+          "falso_positivo"
+        ]
+      },
+      "decidible_v2": true,
+      "motivo_no_decidible": null,
+      "alertas_a_enviar": 1,
+      "payload": {
+        "timestamp": "2026-01-01T00:00:00Z",
+        "host_origen": "10.0.10.2",
+        "metricas": {
+          "M1_nuevos_flujos_por_30s": 21,
+          "M2_destinos_unicos_por_30s": 16,
+          "M3_smb_anomalo": false,
+          "M4_packet_in_por_min": 206.0,
+          "M5_flujos_east_west": false,
+          "M5_count": 1
+        },
+        "umbrales_superados": [
+          "M1",
+          "M2",
+          "M4"
+        ]
+      },
+      "contexto_v1": {}
+    },
+    {
+      "id": "DU-01",
+      "conjunto": "desarrollo",
+      "clase": "duplicado",
+      "nombre": "Alerta repetida tras reiniciar el controlador",
+      "justificacion": "El equipo ya esta bloqueado por un ataque confirmado hace 4 minutos con las mismas metricas. 'confirmado' es aceptable: solo genera un aviso de mas.",
+      "esperado": {
+        "veredicto": "ya_contenido",
+        "aceptables": [
+          "ya_contenido",
+          "confirmado"
+        ]
+      },
+      "decidible_v2": false,
+      "motivo_no_decidible": "La etiqueta 'ya_contenido' depende del incidente previo (contexto); en la v2 se evalúa como prueba de agrupación: 2 alertas → 1 incidente con 2 alertas y 1 explicación.",
+      "alertas_a_enviar": 2,
+      "payload": {
+        "timestamp": "2026-01-01T00:00:00Z",
+        "host_origen": "10.0.10.2",
+        "metricas": {
+          "M1_nuevos_flujos_por_30s": 26,
+          "M2_destinos_unicos_por_30s": 10,
+          "M3_smb_anomalo": true,
+          "M4_packet_in_por_min": 70.0,
+          "M5_flujos_east_west": true,
+          "M5_count": 9
+        },
+        "umbrales_superados": [
+          "M1",
+          "M3",
+          "M5"
+        ]
+      },
+      "contexto_v1": {
+        "incidentes_previos": [
+          {
+            "host": "10.0.10.2",
+            "minutos_antes": 4,
+            "veredicto": "confirmado",
+            "confianza": 93,
+            "metricas": [
+              "M1",
+              "M3",
+              "M5"
+            ]
+          }
+        ],
+        "nivel_alerta": "ALTO"
+      }
+    }
+  ]
+}

@@ -3,15 +3,17 @@
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import func, select, update
+from sqlalchemy import func, or_, select, update
 
 from app.db.database import SesionLocal
 from app.db.models import Auditoria, Configuracion, Incidente, Notificacion, UsoLlm
 
 
 def incidentes_abiertos_de(ip: str) -> list[int]:
-    """Ids de los incidentes de esa IP que aún no se desbloquearon."""
-    consulta = select(Incidente.id).where(Incidente.host_origen == ip, Incidente.t_desbloqueado.is_(None))
+    """Ids de los incidentes REALES de esa IP que aún no se desbloquearon (nunca los del laboratorio)."""
+    consulta = select(Incidente.id).where(
+        Incidente.host_origen == ip, Incidente.t_desbloqueado.is_(None), Incidente.origen == "real"
+    )
     with SesionLocal() as sesion:
         return list(sesion.scalars(consulta.order_by(Incidente.id)))
 
@@ -28,10 +30,10 @@ def marcar_desbloqueados(ids: list[int], ts: datetime) -> None:
 
 
 def ultimo_incidente_abierto_por_ip(ips: list[str]) -> dict[str, int]:
-    """Para cada IP, el id del incidente abierto más reciente (si existe)."""
+    """Para cada IP, el id del incidente REAL abierto más reciente (si existe)."""
     consulta = (
         select(Incidente.host_origen, func.max(Incidente.id))
-        .where(Incidente.host_origen.in_(ips), Incidente.t_desbloqueado.is_(None))
+        .where(Incidente.host_origen.in_(ips), Incidente.t_desbloqueado.is_(None), Incidente.origen == "real")
         .group_by(Incidente.host_origen)
     )
     with SesionLocal() as sesion:
@@ -75,13 +77,20 @@ def ultimos_eventos_auditoria(limite: int) -> list[Auditoria]:
 
 
 def resumen_panel(desde: datetime) -> dict[str, Any]:
+    """Tarjetas del panel: solo incidentes REALES (el laboratorio tiene su propia sección)."""
+    reales = select(Incidente.id).where(Incidente.origen == "real")
+    de_prueba = select(Incidente.id).where(Incidente.origen == "prueba")
     with SesionLocal() as sesion:
         contar = lambda consulta: sesion.scalar(select(func.count()).select_from(consulta.subquery()))  # noqa: E731
         return {
-            "incidentes_abiertos": contar(select(Incidente.id).where(Incidente.t_desbloqueado.is_(None))),
-            "incidentes_hoy": contar(select(Incidente.id).where(Incidente.t_recibido >= desde)),
+            "incidentes_abiertos": contar(reales.where(Incidente.t_desbloqueado.is_(None))),
+            "incidentes_hoy": contar(reales.where(Incidente.t_recibido >= desde)),
             "notificaciones_fallidas_hoy": contar(
-                select(Notificacion.id).where(Notificacion.estado == "fallida", Notificacion.ts >= desde)
+                select(Notificacion.id).where(
+                    Notificacion.estado == "fallida",
+                    Notificacion.ts >= desde,
+                    or_(Notificacion.incidente_id.is_(None), Notificacion.incidente_id.not_in(de_prueba)),
+                )
             ),
-            "ultimo_incidente_id": sesion.scalar(select(func.max(Incidente.id))),
+            "ultimo_incidente_id": sesion.scalar(select(func.max(Incidente.id)).where(Incidente.origen == "real")),
         }

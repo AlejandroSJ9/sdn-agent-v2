@@ -4,7 +4,7 @@ import hmac
 import threading
 import time
 from collections import deque
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Query, status
 
@@ -86,8 +86,9 @@ def recibir_alerta(alerta: AlertaEntrada, tareas: BackgroundTasks) -> AlertaResp
 def listar_incidentes(
     limite: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
+    origen: Literal["real", "prueba", "todos"] = "real",
 ) -> list[IncidenteDetalle]:
-    return alertas.listar_incidentes(limite, offset)
+    return alertas.listar_incidentes(limite, offset, origen)
 
 
 @router.get("/incidentes/{incidente_id}", dependencies=[Depends(verificar_token_operador)])

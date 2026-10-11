@@ -108,3 +108,6 @@ class IncidenteSalida(BaseModel):
     t_notificado: FechaUTC | None
     t_desbloqueado: FechaUTC | None
     contador_alertas: int
+    origen: str = "real"  # real | prueba (laboratorio)
+    corrida_id: int | None = None
+    caso_id: str | None = None

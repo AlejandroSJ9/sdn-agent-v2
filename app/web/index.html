@@ -59,6 +59,11 @@
 
         <section class="tarjeta">
           <h2>Incidentes
+            <select id="filtro-origen" title="Origen de los incidentes">
+              <option value="real" selected>Reales</option>
+              <option value="prueba">De prueba</option>
+              <option value="todos">Todos</option>
+            </select>
             <span class="paginacion">
               <button id="pag-anterior" class="discreto">◀</button>
               <span id="pag-numero">1</span>
@@ -91,6 +96,42 @@
         </section>
       </div>
     </div>
+
+    <section id="laboratorio" class="tarjeta">
+      <h2>Laboratorio <small>escenarios aislados de los incidentes reales</small></h2>
+      <div class="fila controles-lab">
+        <button id="lab-desarrollo" class="lanzar">▶ Desarrollo</button>
+        <button id="lab-validacion" class="lanzar">▶ Validación</button>
+        <button id="lab-todos" class="lanzar">▶ Todos</button>
+        <label><input type="checkbox" id="lab-llm"> usar LLM</label>
+        <label><input type="checkbox" id="lab-correos"> enviar correos</label>
+        <label>Repeticiones
+          <select id="lab-repeticiones"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select>
+        </label>
+        <span id="lab-costo" class="mensaje"></span>
+      </div>
+      <div class="fila"><span class="barra ancha"><span id="lab-barra"></span></span><span id="lab-progreso"></span></div>
+      <p id="lab-msg" class="mensaje"></p>
+      <div class="columnas-lab">
+        <div><h3>Escenarios</h3><div id="lab-escenarios"></div></div>
+        <div><h3>Resultados <small id="lab-corrida"></small></h3><div id="lab-resumen"></div><div id="lab-resultados"></div></div>
+      </div>
+      <div class="bloque">
+        <h3>Pruebas automáticas</h3>
+        <button id="btn-pytest-unit">Ejecutar pruebas unitarias</button>
+        <button id="btn-pytest-integracion">Ejecutar pruebas de integración</button>
+        <span id="pytest-msg" class="mensaje"></span>
+        <pre id="pytest-consola" class="json consola"></pre>
+      </div>
+      <div class="bloque">
+        <h3>Exportar</h3>
+        <select id="export-origen"><option value="real">Reales</option><option value="prueba">De prueba</option><option value="todos">Todos</option></select>
+        <button id="btn-export-incidentes">CSV de incidentes</button>
+        <button id="btn-export-json">JSON de la corrida</button>
+        <button id="btn-export-csv">CSV de la corrida</button>
+        <span id="export-msg" class="mensaje"></span>
+      </div>
+    </section>
   </main>
 
   <!-- Desbloqueo: exige escribir la IP exacta y un motivo -->

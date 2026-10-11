@@ -102,9 +102,16 @@ def construir_payload(
 
 
 def notificar(
-    incidente_id: int | None, tipo: str, host: str | None = None, motivo: str | None = None
+    incidente_id: int | None,
+    tipo: str,
+    host: str | None = None,
+    motivo: str | None = None,
+    omitir: str | None = None,
 ) -> ResultadoNotificacion | None:
-    """Envía y registra. Devuelve None si el incidente no existe. Nunca lanza excepción."""
+    """Envía y registra. Devuelve None si el incidente no existe. Nunca lanza excepción.
+
+    Con `omitir` (p. ej. "laboratorio") no se usa la red: queda "omitida" con ese motivo en `error`.
+    """
     payload: dict = {}
     try:
         incidente = None
@@ -115,13 +122,16 @@ def notificar(
             incidente = IncidenteSalida.model_validate(fila)
         payload = construir_payload(incidente, tipo, host=host, motivo=motivo).model_dump(mode="json")
         ajustes = get_settings()
-        resultado = appscript.enviar(
-            payload,
-            ajustes.APPSCRIPT_URL,
-            ajustes.APPSCRIPT_TIMEOUT,
-            transporte=transporte_appscript(),
-            esperar=esperar_reintento,
-        )
+        if omitir:
+            resultado = ResultadoNotificacion(estado="omitida", intentos=0, error=omitir)
+        else:
+            resultado = appscript.enviar(
+                payload,
+                ajustes.APPSCRIPT_URL,
+                ajustes.APPSCRIPT_TIMEOUT,
+                transporte=transporte_appscript(),
+                esperar=esperar_reintento,
+            )
     except Exception:
         logger.exception("No se pudo enviar la notificación %s del incidente %s", tipo, incidente_id)
         resultado = ResultadoNotificacion(estado="fallida", intentos=0, error="error_interno")

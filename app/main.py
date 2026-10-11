@@ -5,7 +5,15 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from app.api import routes_alertas, routes_notificaciones, routes_operador, routes_panel, salud, websocket
+from app.api import (
+    routes_alertas,
+    routes_laboratorio,
+    routes_notificaciones,
+    routes_operador,
+    routes_panel,
+    salud,
+    websocket,
+)
 from app.config import get_settings
 from app.db.database import iniciar_bd
 
@@ -22,6 +30,7 @@ app.include_router(routes_alertas.router)
 app.include_router(routes_notificaciones.router)
 app.include_router(routes_operador.router)
 app.include_router(routes_panel.router)
+app.include_router(routes_laboratorio.router)
 app.include_router(routes_panel.router_pagina)
 app.include_router(websocket.router)
 app.mount("/static", StaticFiles(directory=routes_panel.DIRECTORIO_WEB), name="static")

@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.db.database import SesionLocal
 from app.db.models import Alerta, Auditoria, Incidente, Notificacion, UsoLlm
+from app.schemas.laboratorio import AmbitoPrueba
 
 # El contador de alertas de un incidente se calcula; no se guarda en una columna.
 _contador_alertas = (
@@ -31,6 +32,7 @@ def crear_incidente(
     t_ryu: datetime,
     t_recibido: datetime,
     payload: dict,
+    ambito: AmbitoPrueba | None = None,
 ) -> int:
     """Crea el incidente y su primera alerta en una sola transacción. Devuelve el id del incidente."""
     with SesionLocal.begin() as sesion:
@@ -40,6 +42,8 @@ def crear_incidente(
             alerta_nivel=alerta_nivel,
             t_ryu=t_ryu,
             t_recibido=t_recibido,
+            origen="real" if ambito is None else "prueba",
+            **(ambito._asdict() if ambito else {}),
         )
         sesion.add(incidente)
         sesion.flush()
@@ -55,13 +59,27 @@ def agregar_alerta_a_incidente(incidente_id: int, payload: dict, t_ryu: datetime
         return sesion.scalar(select(func.count(Alerta.id)).where(Alerta.incidente_id == incidente_id))
 
 
-def buscar_incidente_abierto_reciente(host: str, segundos: int) -> int | None:
-    """Incidente sin desbloquear del host cuya ÚLTIMA alerta llegó hace ≤ segundos (ventana deslizante)."""
+def _mismo_ambito(ambito: AmbitoPrueba | None) -> tuple:
+    """Real solo con real; prueba solo con la misma corrida, caso y repetición."""
+    if ambito is None:
+        return (Incidente.origen == "real", Incidente.corrida_id.is_(None))
+    return (
+        Incidente.origen == "prueba",
+        Incidente.corrida_id == ambito.corrida_id,
+        Incidente.caso_id == ambito.caso_id,
+        Incidente.repeticion == ambito.repeticion,
+    )
+
+
+def buscar_incidente_abierto_reciente(host: str, segundos: int, ambito: AmbitoPrueba | None = None) -> int | None:
+    """Incidente sin desbloquear del host cuya ÚLTIMA alerta llegó hace ≤ segundos (ventana deslizante),
+    dentro del mismo ámbito (los reales nunca se mezclan con los de prueba ni las corridas entre sí)."""
     limite = datetime.now(timezone.utc) - timedelta(seconds=segundos)
     consulta = (
         select(Incidente.id)
         .join(Alerta, Alerta.incidente_id == Incidente.id)
         .where(Incidente.host_origen == host, Incidente.t_desbloqueado.is_(None), Alerta.t_recibido >= limite)
+        .where(*_mismo_ambito(ambito))
         .order_by(Incidente.id.desc())
         .limit(1)
     )
@@ -69,9 +87,11 @@ def buscar_incidente_abierto_reciente(host: str, segundos: int) -> int | None:
         return sesion.scalar(consulta)
 
 
-def listar_incidentes(limite: int, offset: int) -> list[dict[str, Any]]:
-    """Incidentes del más reciente al más antiguo, con su contador de alertas."""
+def listar_incidentes(limite: int, offset: int, origen: str = "real") -> list[dict[str, Any]]:
+    """Incidentes del más reciente al más antiguo, con su contador de alertas. origen: real | prueba | todos."""
     consulta = _seleccion_incidentes().order_by(Incidente.id.desc()).limit(limite).offset(offset)
+    if origen != "todos":
+        consulta = consulta.where(Incidente.origen == origen)
     with SesionLocal() as sesion:
         return [dict(fila) for fila in sesion.execute(consulta).mappings()]
 

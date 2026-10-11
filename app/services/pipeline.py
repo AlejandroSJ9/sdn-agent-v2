@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from pydantic import ValidationError
 
 from app.config import get_settings
-from app.db import repository
+from app.db import repository, repository_laboratorio
 from app.integrations.llm import ClienteLLM, ClienteOpenRouter, LLMError, RespuestaLLM
 from app.schemas.alerta import AlertaEntrada
 from app.schemas.explicacion import ExplicacionC4
@@ -28,8 +28,12 @@ def obtener_cliente_llm() -> ClienteLLM:
     return ClienteOpenRouter(ajustes.OPENROUTER_API_KEY, ajustes.LLM_MODELO, ajustes.LLM_TIMEOUT)
 
 
-def _intentar_llm(alerta: AlertaEntrada, alertas_agrupadas: int, cliente: ClienteLLM | None) -> Intento:
+def _intentar_llm(
+    alerta: AlertaEntrada, alertas_agrupadas: int, cliente: ClienteLLM | None, laboratorio: dict | None = None
+) -> Intento:
     ajustes = get_settings()
+    if laboratorio is not None and not laboratorio["usar_llm"]:
+        return None, "laboratorio", None  # corrida sin LLM: no toca el cupo ni el interruptor global
     if not configuracion.llm_habilitado():
         return None, "llm_deshabilitado", None
     if not ajustes.OPENROUTER_API_KEY:
@@ -65,9 +69,10 @@ def procesar(incidente_id: int, cliente: ClienteLLM | None = None) -> None:
             return
         payload, alertas_agrupadas = datos
         alerta = AlertaEntrada.model_validate(payload)  # al prompt solo llegan campos validados
+        laboratorio = repository_laboratorio.opciones_corrida(incidente_id)  # None si es un incidente real
 
         try:
-            explicacion, motivo, respuesta = _intentar_llm(alerta, alertas_agrupadas, cliente)
+            explicacion, motivo, respuesta = _intentar_llm(alerta, alertas_agrupadas, cliente, laboratorio)
         except Exception:
             logger.exception("Error inesperado al usar el LLM en el incidente %s", incidente_id)
             explicacion, motivo, respuesta = None, "error_interno", None
@@ -98,6 +103,7 @@ def procesar(incidente_id: int, cliente: ClienteLLM | None = None) -> None:
                 "severidad": explicacion.severidad,
             },
         )
-        notificacion.notificar(incidente_id, "incidente")  # nunca lanza; la explicación ya quedó guardada
+        omitir = "laboratorio" if laboratorio is not None and not laboratorio["enviar_correos"] else None
+        notificacion.notificar(incidente_id, "incidente", omitir=omitir)  # nunca lanza; la explicación ya quedó
     except Exception:
         logger.exception("Falló el pipeline del incidente %s", incidente_id)

@@ -5,6 +5,7 @@ import { $, chip, duracion, el, hora, mensaje, msEntre, vaciar } from "./dom.js"
 
 const POR_PAGINA = 20;
 let pagina = 0;
+let origen = "real";
 let idEnDetalle = null;
 
 const ETAPAS = [
@@ -15,6 +16,10 @@ const ETAPAS = [
   ["t_desbloqueado", "Desbloqueado por el operador"],
 ];
 
+function etiquetaPrueba(incidente) {
+  return incidente.origen === "prueba" ? [" ", chip(`PRUEBA ${incidente.caso_id ?? ""}`.trim(), "prueba")] : null;
+}
+
 function fuente(incidente) {
   if (incidente.fuente_explicacion === "llm") return chip("LLM", "llm");
   if (incidente.fuente_explicacion === "reglas") return chip("reglas");
@@ -24,7 +29,7 @@ function fuente(incidente) {
 export async function refrescarIncidentes() {
   const contenedor = $("incidentes");
   try {
-    const lista = await api(`/api/incidentes?limite=${POR_PAGINA}&offset=${pagina * POR_PAGINA}`);
+    const lista = await api(`/api/incidentes?limite=${POR_PAGINA}&offset=${pagina * POR_PAGINA}&origen=${origen}`);
     vaciar($("pag-numero"), pagina + 1);
     $("pag-anterior").disabled = pagina === 0;
     $("pag-siguiente").disabled = lista.length < POR_PAGINA;
@@ -37,7 +42,7 @@ export async function refrescarIncidentes() {
         "tr",
         { class: "clic", onclick: () => { location.hash = `#/incidentes/${i.id}`; } },
         el("td", {}, `#${i.id}`),
-        el("td", {}, i.host_origen),
+        el("td", {}, i.host_origen, etiquetaPrueba(i)),
         el("td", {}, chip(i.severidad)),
         el("td", {}, i.veredicto ?? "—"),
         el("td", {}, fuente(i)),
@@ -107,7 +112,7 @@ export async function mostrarDetalle(id) {
     const notif = i.ultima_notificacion;
     vaciar(
       seccion,
-      el("h2", {}, `Detalle del incidente #${i.id} · ${i.host_origen}`, el("a", { href: "#/", class: "discreto" }, "cerrar")),
+      el("h2", {}, `Detalle del incidente #${i.id} · ${i.host_origen}`, etiquetaPrueba(i), el("a", { href: "#/", class: "discreto" }, "cerrar")),
       el(
         "dl",
         { class: "detalle-grid" },
@@ -154,4 +159,9 @@ export function detalleAbierto() {
 export function iniciarIncidentes() {
   $("pag-anterior").addEventListener("click", () => { pagina = Math.max(0, pagina - 1); refrescarIncidentes(); });
   $("pag-siguiente").addEventListener("click", () => { pagina += 1; refrescarIncidentes(); });
+  $("filtro-origen").addEventListener("change", (evento) => {
+    origen = evento.target.value;
+    pagina = 0;
+    refrescarIncidentes();
+  });
 }

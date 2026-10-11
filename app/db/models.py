@@ -2,7 +2,7 @@
 
 from datetime import datetime, timezone
 
-from sqlalchemy import JSON, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.database import Base
@@ -39,6 +39,11 @@ class Incidente(Base):
     t_explicado: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     t_notificado: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     t_desbloqueado: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Laboratorio (Fase 6): los incidentes reales quedan con origen="real" y el resto en NULL
+    origen: Mapped[str] = mapped_column(String(10), default="real", server_default="real", index=True)
+    corrida_id: Mapped[int | None] = mapped_column(ForeignKey("corridas.id"), index=True)
+    caso_id: Mapped[str | None] = mapped_column(String(10))
+    repeticion: Mapped[int | None] = mapped_column(Integer)
 
 
 class Alerta(Base):
@@ -94,3 +99,54 @@ class Configuracion(Base):
 
     clave: Mapped[str] = mapped_column(String(50), primary_key=True)
     valor: Mapped[str] = mapped_column(Text)
+
+
+class Corrida(Base):
+    """Una ejecución del laboratorio sobre los escenarios (tests/escenarios/escenarios.json)."""
+
+    __tablename__ = "corridas"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    t_inicio: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora_utc)
+    t_fin: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    estado: Mapped[str] = mapped_column(String(15))  # en_curso | terminada | fallida
+    casos: Mapped[list] = mapped_column(JSON)
+    conjunto: Mapped[str | None] = mapped_column(String(12))  # desarrollo | validacion | todos | None
+    usar_llm: Mapped[bool] = mapped_column(Boolean)
+    enviar_correos: Mapped[bool] = mapped_column(Boolean)
+    repeticiones: Mapped[int] = mapped_column(Integer)
+    costo_estimado: Mapped[int] = mapped_column(Integer)
+    resumen: Mapped[dict | None] = mapped_column(JSON)
+    error: Mapped[str | None] = mapped_column(String(200))
+
+
+class ResultadoCaso(Base):
+    __tablename__ = "resultados_caso"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    corrida_id: Mapped[int] = mapped_column(ForeignKey("corridas.id"), index=True)
+    caso_id: Mapped[str] = mapped_column(String(10))
+    repeticion: Mapped[int] = mapped_column(Integer)
+    incidente_id: Mapped[int | None] = mapped_column(ForeignKey("incidentes.id"))
+    decidible: Mapped[bool] = mapped_column(Boolean)
+    veredicto_esperado: Mapped[str] = mapped_column(String(20))
+    veredicto_obtenido: Mapped[str | None] = mapped_column(String(20))
+    acierto: Mapped[bool | None] = mapped_column(Boolean)  # el obtenido está en "aceptables"
+    fuente: Mapped[str | None] = mapped_column(String(10))
+    motivo_respaldo: Mapped[str | None] = mapped_column(String(30))
+    latencia_explicacion_ms: Mapped[int | None] = mapped_column(Integer)  # t_explicado - t_recibido
+    detalle: Mapped[dict | None] = mapped_column(JSON)  # DU-01: comprobación de agrupación
+
+
+class EjecucionPytest(Base):
+    __tablename__ = "ejecuciones_pytest"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    carpeta: Mapped[str] = mapped_column(String(12))
+    t_inicio: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora_utc)
+    t_fin: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    estado: Mapped[str] = mapped_column(String(15))  # en_curso | terminada | timeout | error
+    aprobadas: Mapped[int | None] = mapped_column(Integer)
+    fallidas: Mapped[int | None] = mapped_column(Integer)
+    duracion_ms: Mapped[int | None] = mapped_column(Integer)
+    salida: Mapped[str] = mapped_column(Text, default="")  # recortada a los últimos 20 000 caracteres

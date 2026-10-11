@@ -37,3 +37,8 @@ Anotar aquí (una línea) lo que no pide la fase actual.
 
 - **[Impacto BAJO] Una notificación "omitida" no emite evento (C5 no define `notificacion_omitida`).** La franja del panel se actualiza con `explicacion_lista`, pero si el correo queda omitido la etapa "Notificado" solo cambia al refrescar el incidente. Si molesta en la demo, agregar `notificacion_omitida` a C5 (requiere aprobación del contrato).
 - **[Impacto BAJO] El navegador pide `/favicon.ico` y recibe 404.** Inofensivo; se puede servir un icono local en `app/web/` para limpiar la consola.
+
+## Sugerencias surgidas en la Fase 6
+
+- **[Impacto BAJO] Si el agente se reinicia en medio de una corrida o de un pytest, quedan en estado `en_curso` para siempre.** El candado vive en memoria (se libera al reiniciar), pero la fila no. Solución: al arrancar, marcar como `fallida`/`error` las corridas y ejecuciones que sigan `en_curso`.
+- **[Impacto BAJO] `cupo_consumido.llamadas_llm` cuenta incidentes que llegaron al LLM, no peticiones HTTP.** Un reintento sin `response_format` consume 2 peticiones pero cuenta 1. Para la Fase 8 se puede guardar el número de peticiones por incidente (hoy solo existe agregado por día en `uso_llm`).

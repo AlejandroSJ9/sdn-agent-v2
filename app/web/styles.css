@@ -84,3 +84,12 @@ tbody tr.clic { cursor: pointer; } tbody tr.clic:hover { background: var(--chip)
 .dialogo { width: min(420px, 92vw); display: grid; gap: 8px; }
 .dialogo .acciones { display: flex; justify-content: flex-end; gap: 8px; }
 .ayuda { color: var(--muted); margin: 0; }
+
+/* Laboratorio */
+.chip.prueba { background: #ece6fb; color: var(--ryu); font-weight: 600; }
+.controles-lab { margin-bottom: 8px; }
+.barra.ancha { width: 260px; }
+.columnas-lab { display: grid; grid-template-columns: 1fr 1.4fr; gap: 16px; margin-top: 8px; }
+.columnas-lab h3, #laboratorio h3 { font-size: 13px; margin: 8px 0 4px; color: var(--muted); }
+.consola { min-height: 60px; max-height: 300px; white-space: pre-wrap; }
+@media (max-width: 1000px) { .columnas-lab { grid-template-columns: 1fr; } }

@@ -7,6 +7,8 @@ import { $, agrupar, mensaje } from "./dom.js";
 import { iniciarEstado, marcarConexion, refrescarEstado, refrescarResumen } from "./estado.js";
 import { detalleAbierto, iniciarIncidentes, mostrarDetalle, ocultarDetalle, refrescarIncidentes } from "./incidentes.js";
 import { agregarEvento, incidenteDelFlujo, seguirIncidente } from "./timeline.js";
+import * as laboratorio from "./laboratorio.js";
+import * as pruebas from "./pruebas.js";
 import { iniciarUmbrales, refrescarUmbrales } from "./umbrales.js";
 import { conectarEventos } from "./ws.js";
 
@@ -28,15 +30,33 @@ function enrutar() {
   else ocultarDetalle();
 }
 
+function alEventoDePrueba(evento) {
+  const datos = evento.datos || {};
+  const esPytest = datos.tipo === "pytest";
+  if (evento.tipo === "prueba_progreso") {
+    if (esPytest) pruebas.alLinea(datos); // cada línea de pytest va a su consola, no a la línea de tiempo
+    else laboratorio.alProgreso(datos);
+    return !esPytest;
+  }
+  if (esPytest) pruebas.alTerminar(datos);
+  else laboratorio.alTerminar(datos);
+  return true;
+}
+
 function alEvento(evento) {
+  if (evento.tipo.startsWith("prueba_")) {
+    if (alEventoDePrueba(evento)) agregarEvento(evento);
+    return;
+  }
   agregarEvento(evento);
   refrescar.auditoria();
   const datos = evento.datos || {};
   const id = datos.incidente_id;
+  const dePrueba = datos.origen === "prueba";
   switch (evento.tipo) {
     case "alerta_recibida":
-      if (!datos.agrupada) seguirIncidente(id);
-      refrescar.bloqueados();
+      if (!datos.agrupada && !dePrueba) seguirIncidente(id);
+      if (!dePrueba) refrescar.bloqueados();
       break;
     case "explicacion_lista":
     case "notificacion_enviada":
@@ -67,6 +87,8 @@ async function arrancarPanel() {
     iniciarIncidentes();
     iniciarUmbrales();
     iniciarAuditoria();
+    laboratorio.iniciarLaboratorio();
+    pruebas.iniciarPruebas();
     window.addEventListener("hashchange", enrutar);
     iniciado = true;
   }
