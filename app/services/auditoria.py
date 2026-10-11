@@ -6,7 +6,7 @@ import threading
 from datetime import datetime, timezone
 from typing import Any
 
-from app.db import repository
+from app.db import repository, repository_operador
 
 HASH_INICIAL = "0" * 64
 
@@ -51,3 +51,11 @@ def verificar_cadena() -> dict[str, Any]:
             return {"integra": False, "filas": len(filas), "primera_rota": fila.id}
         esperado = fila.hash
     return {"integra": True, "filas": len(filas), "primera_rota": None}
+
+
+def ultimos(limite: int) -> list[dict[str, Any]]:
+    """Últimos eventos, del más reciente al más antiguo, con la hora en UTC."""
+    return [
+        {"id": fila.id, "ts": _iso_utc(fila.ts), "evento": fila.evento, "datos": fila.datos}
+        for fila in repository_operador.ultimos_eventos_auditoria(limite)
+    ]

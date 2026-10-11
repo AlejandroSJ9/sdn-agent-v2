@@ -32,3 +32,8 @@ Anotar aquí (una línea) lo que no pide la fase actual.
 ## Sugerencias surgidas en la Fase 4
 
 - **[Impacto BAJO] Si la BD falla justo después de que Ryu confirmó el desbloqueo, el host queda libre sin registro.** `desbloquear_host` llama primero a Ryu (como pide la fase: si Ryu falla, la BD no se toca), pero el caso inverso (Ryu OK y error al marcar `t_desbloqueado` o auditar) devolvería 500 aunque el host ya esté desbloqueado. Mitigación: capturar ese error, registrar `host_desbloqueado_sin_registro` en el log con la IP y responder 200 con una advertencia para que el operador lo sepa.
+
+## Sugerencias surgidas en la Fase 5
+
+- **[Impacto BAJO] Una notificación "omitida" no emite evento (C5 no define `notificacion_omitida`).** La franja del panel se actualiza con `explicacion_lista`, pero si el correo queda omitido la etapa "Notificado" solo cambia al refrescar el incidente. Si molesta en la demo, agregar `notificacion_omitida` a C5 (requiere aprobación del contrato).
+- **[Impacto BAJO] El navegador pide `/favicon.ico` y recibe 404.** Inofensivo; se puede servir un icono local en `app/web/` para limpiar la consola.

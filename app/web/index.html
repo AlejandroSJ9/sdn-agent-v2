@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Panel 360 SDN</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <!-- Acceso: el token de operador se guarda solo en sessionStorage -->
+  <div id="acceso" class="velo" hidden>
+    <form id="form-acceso" class="tarjeta dialogo">
+      <h2>Panel 360 · SDN-Agent</h2>
+      <label for="campo-token">Token de operador</label>
+      <input id="campo-token" type="password" autocomplete="off" required>
+      <p id="error-acceso" class="mensaje error" hidden></p>
+      <button type="submit" class="primario">Entrar</button>
+    </form>
+  </div>
+
+  <header class="cabecera">
+    <div class="fila">
+      <h1>SDN-Agent · Panel 360</h1>
+      <span id="ind-agente" class="indicador">Agente</span>
+      <span id="ind-ryu" class="indicador">Ryu</span>
+      <span id="ind-vivo" class="indicador">En vivo</span>
+      <button id="btn-salir" class="discreto">Salir</button>
+    </div>
+    <div class="fila controles">
+      <span>Cupo LLM <strong id="cupo-texto">—</strong></span>
+      <span class="barra"><span id="cupo-barra"></span></span>
+      <button id="btn-llm" class="interruptor">LLM —</button>
+      <label>DEDUP <input id="campo-dedup" type="number" min="10" max="3600"> s</label>
+      <button id="btn-dedup">Guardar</button>
+      <span id="msg-config" class="mensaje"></span>
+    </div>
+    <div id="avisos"></div>
+  </header>
+
+  <main>
+    <section class="tarjetas">
+      <div class="tarjeta numero"><span>Incidentes abiertos</span><strong id="res-abiertos">—</strong></div>
+      <div class="tarjeta numero"><span>Incidentes hoy</span><strong id="res-hoy">—</strong></div>
+      <div class="tarjeta numero"><span>Correos fallidos hoy</span><strong id="res-fallidas">—</strong></div>
+      <div class="tarjeta numero"><span>Último incidente</span><strong id="res-ultimo">—</strong></div>
+    </section>
+
+    <section class="tarjeta">
+      <h2>Flujo del último incidente <small id="flujo-titulo"></small></h2>
+      <div id="flujo" class="flujo"></div>
+    </section>
+
+    <div class="columnas">
+      <div class="columna">
+        <section class="tarjeta">
+          <h2>Hosts bloqueados <button id="btn-bloqueados" class="discreto">↻</button></h2>
+          <div id="bloqueados"></div>
+        </section>
+
+        <section class="tarjeta">
+          <h2>Incidentes
+            <span class="paginacion">
+              <button id="pag-anterior" class="discreto">◀</button>
+              <span id="pag-numero">1</span>
+              <button id="pag-siguiente" class="discreto">▶</button>
+            </span>
+          </h2>
+          <div id="incidentes"></div>
+        </section>
+
+        <section id="detalle" class="tarjeta" hidden></section>
+      </div>
+
+      <div class="columna">
+        <section class="tarjeta">
+          <h2>Línea de tiempo en vivo</h2>
+          <ol id="linea-tiempo" class="lista-eventos"></ol>
+          <pre id="evento-json" class="json" hidden></pre>
+        </section>
+
+        <section class="tarjeta">
+          <h2>Umbrales de Ryu</h2>
+          <form id="form-umbrales" class="umbrales"></form>
+          <p id="msg-umbrales" class="mensaje"></p>
+        </section>
+
+        <section class="tarjeta">
+          <h2>Auditoría <span id="ind-auditoria" class="indicador">—</span>
+            <button id="btn-verificar" class="discreto">Verificar</button></h2>
+          <ol id="auditoria" class="lista-eventos"></ol>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <!-- Desbloqueo: exige escribir la IP exacta y un motivo -->
+  <div id="modal" class="velo" hidden>
+    <form id="form-desbloqueo" class="tarjeta dialogo">
+      <h2>Desbloquear <span id="modal-ip"></span></h2>
+      <p class="ayuda">El agente nunca desbloquea solo. Escribe la IP exacta para confirmar.</p>
+      <label for="modal-confirmacion">IP del host</label>
+      <input id="modal-confirmacion" autocomplete="off">
+      <label for="modal-motivo">Motivo (5 a 200 caracteres)</label>
+      <textarea id="modal-motivo" maxlength="200" rows="3"></textarea>
+      <p id="modal-resultado" class="mensaje"></p>
+      <div class="acciones">
+        <button type="button" id="modal-cancelar">Cancelar</button>
+        <button type="submit" id="modal-confirmar" class="peligro" disabled>Confirmar</button>
+      </div>
+    </form>
+  </div>
+
+  <script type="module" src="/static/main.js"></script>
+</body>
+</html>

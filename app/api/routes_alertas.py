@@ -9,7 +9,7 @@ from typing import Annotated
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Query, status
 
 from app.config import get_settings
-from app.schemas.alerta import AlertaEntrada, AlertaRespuesta, IncidenteSalida
+from app.schemas.alerta import AlertaEntrada, AlertaRespuesta
 from app.schemas.notificacion import IncidenteDetalle
 from app.services import alertas, auditoria
 
@@ -86,7 +86,7 @@ def recibir_alerta(alerta: AlertaEntrada, tareas: BackgroundTasks) -> AlertaResp
 def listar_incidentes(
     limite: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
-) -> list[IncidenteSalida]:
+) -> list[IncidenteDetalle]:
     return alertas.listar_incidentes(limite, offset)
 
 

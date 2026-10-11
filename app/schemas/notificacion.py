@@ -4,7 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from app.schemas.alerta import FechaUTC, IncidenteSalida
+from app.schemas.alerta import FechaUTC, IncidenteSalida, Metricas
 
 
 class PayloadC3(BaseModel):
@@ -34,6 +34,9 @@ class NotificacionResumen(BaseModel):
 
 
 class IncidenteDetalle(IncidenteSalida):
-    """Detalle de un incidente: IncidenteSalida + su última notificación."""
+    """IncidenteSalida + su última notificación. Solo el detalle trae métricas y umbrales (validados,
+    de la alerta que originó el incidente); en la lista quedan en null."""
 
     ultima_notificacion: NotificacionResumen | None = None
+    metricas: Metricas | None = None
+    umbrales_superados: list[str] | None = None

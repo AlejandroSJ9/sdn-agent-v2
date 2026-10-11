@@ -13,7 +13,7 @@ from app.db import repository
 from app.integrations.llm import ClienteLLM, ClienteOpenRouter, LLMError, RespuestaLLM
 from app.schemas.alerta import AlertaEntrada
 from app.schemas.explicacion import ExplicacionC4
-from app.services import auditoria, configuracion, notificacion, presupuesto
+from app.services import auditoria, configuracion, eventos, notificacion, presupuesto
 from app.services.explicacion_reglas import explicar_por_reglas
 from app.services.prompt import SYSTEM_PROMPT, construir_mensaje_usuario
 
@@ -87,6 +87,16 @@ def procesar(incidente_id: int, cliente: ClienteLLM | None = None) -> None:
         )
         auditoria.registrar(
             "explicacion_generada", {"incidente_id": incidente_id, "fuente": fuente, "motivo_respaldo": motivo}
+        )
+        eventos.emitir(
+            "explicacion_lista",
+            {
+                "incidente_id": incidente_id,
+                "fuente": fuente,
+                "motivo_respaldo": motivo,
+                "veredicto": explicacion.veredicto,
+                "severidad": explicacion.severidad,
+            },
         )
         notificacion.notificar(incidente_id, "incidente")  # nunca lanza; la explicación ya quedó guardada
     except Exception:

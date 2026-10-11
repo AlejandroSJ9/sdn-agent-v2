@@ -133,7 +133,10 @@ def test_lectura_de_incidentes(cliente, cabecera_agente, cabecera_operador, payl
     assert incidente["t_recibido"].endswith("Z")
 
     detalle = cliente.get(f"/api/incidentes/{incidente_id}", headers=cabecera_operador).json()
-    assert detalle.pop("ultima_notificacion") is None  # el detalle agrega la notificación (Fase 3)
+    # La lista y el detalle traen la última notificación (Fases 3 y 5); solo el detalle trae métricas y umbrales.
+    assert detalle.pop("ultima_notificacion") is None and incidente.pop("ultima_notificacion") is None
+    assert detalle.pop("metricas")["M1_nuevos_flujos_por_30s"] == 42 and incidente.pop("metricas") is None
+    assert detalle.pop("umbrales_superados") == ["M1", "M2", "M3"] and incidente.pop("umbrales_superados") is None
     assert detalle == incidente
     assert cliente.get("/api/incidentes/999", headers=cabecera_operador).status_code == 404
     assert cliente.get("/api/incidentes").status_code == 401
