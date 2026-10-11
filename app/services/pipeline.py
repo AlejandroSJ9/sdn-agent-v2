@@ -33,7 +33,7 @@ def _intentar_llm(
 ) -> Intento:
     ajustes = get_settings()
     if laboratorio is not None and not laboratorio["usar_llm"]:
-        return None, "laboratorio", None  # corrida sin LLM: no toca el cupo ni el interruptor global
+        return None, "laboratorio_sin_llm", None  # corrida sin LLM: no toca el cupo ni el interruptor global
     if not configuracion.llm_habilitado():
         return None, "llm_deshabilitado", None
     if not ajustes.OPENROUTER_API_KEY:

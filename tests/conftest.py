@@ -16,6 +16,18 @@ from app.services import notificacion, operador, pipeline
 
 TOKEN_AGENTE = "token-agente-de-prueba"
 TOKEN_OPERADOR = "token-operador-de-prueba"
+CLAVE_AUDITORIA = "clave-auditoria-de-prueba"
+
+
+@pytest.fixture(autouse=True)
+def _secretos_de_prueba(monkeypatch):
+    """El agente no arranca sin estos secretos (Fase 6.5): todas las pruebas usan valores propios."""
+    monkeypatch.setenv("AGENT_TOKEN", TOKEN_AGENTE)
+    monkeypatch.setenv("OPERADOR_TOKEN", TOKEN_OPERADOR)
+    monkeypatch.setenv("AUDITORIA_CLAVE", CLAVE_AUDITORIA)
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
 
 
 @pytest.fixture

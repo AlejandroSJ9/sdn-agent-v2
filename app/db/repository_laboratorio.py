@@ -96,3 +96,20 @@ def ultima_ejecucion_pytest() -> dict[str, Any] | None:
     with SesionLocal() as sesion:
         fila = sesion.scalar(select(EjecucionPytest).order_by(EjecucionPytest.id.desc()).limit(1))
         return _a_dict(fila) if fila else None
+
+
+def _interrumpir(modelo) -> list[int]:
+    """Marca como "interrumpida" lo que siguiera "en_curso" (el agente se detuvo a mitad)."""
+    with SesionLocal.begin() as sesion:
+        filas = list(sesion.scalars(select(modelo).where(modelo.estado == "en_curso")))
+        for fila in filas:
+            fila.estado, fila.t_fin = "interrumpida", datetime.now(timezone.utc)
+        return [fila.id for fila in filas]
+
+
+def interrumpir_corridas_en_curso() -> list[int]:
+    return _interrumpir(Corrida)
+
+
+def interrumpir_pytest_en_curso() -> list[int]:
+    return _interrumpir(EjecucionPytest)

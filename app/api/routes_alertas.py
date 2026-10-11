@@ -1,18 +1,20 @@
 """Rutas de alertas (Ryu → agente), incidentes y verificación de auditoría (operador)."""
 
 import hmac
+import logging
 import threading
 import time
 from collections import deque
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Query, Request, status
 
 from app.config import get_settings
 from app.schemas.alerta import AlertaEntrada, AlertaRespuesta
 from app.schemas.notificacion import IncidenteDetalle
 from app.services import alertas, auditoria
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api")
 
 
@@ -66,8 +68,10 @@ def verificar_token_operador(
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Token de operador inválido")
 
 
-def limitar_tasa() -> None:
+def limitar_tasa(request: Request) -> None:
     if not limite_tasa.permitir(get_settings().RATE_LIMIT_POR_MIN):
+        ip = request.client.host if request.client else "desconocida"
+        logger.warning("Alerta rechazada por límite de tasa (429) desde %s", ip)  # solo log, nunca BD
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Límite de tasa excedido")
 
 

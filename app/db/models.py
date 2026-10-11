@@ -3,9 +3,31 @@
 from datetime import datetime, timezone
 
 from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy.types import TypeDecorator
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.database import Base
+
+
+class FechaHoraUTC(TypeDecorator):
+    """Guarda en UTC y SIEMPRE devuelve datetimes con zona UTC (SQLite no guarda la zona).
+
+    Al guardar: una fecha sin zona se toma como UTC; una con zona se convierte a UTC.
+    El formato almacenado es el mismo que el de DateTime, así que es compatible con bases previas.
+    """
+
+    impl = DateTime
+    cache_ok = True
+
+    def process_bind_param(self, valor, dialecto):
+        if valor is None or valor.tzinfo is None:
+            return valor
+        return valor.astimezone(timezone.utc).replace(tzinfo=None)
+
+    def process_result_value(self, valor, dialecto):
+        if valor is None:
+            return None
+        return valor.replace(tzinfo=timezone.utc) if valor.tzinfo is None else valor.astimezone(timezone.utc)
 
 
 def ahora_utc() -> datetime:
@@ -34,11 +56,11 @@ class Incidente(Base):
     tokens_salida: Mapped[int | None] = mapped_column(Integer)
     latencia_llm_ms: Mapped[int | None] = mapped_column(Integer)
     # Marcas de tiempo (CLAUDE.md §7)
-    t_ryu: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    t_recibido: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora_utc)
-    t_explicado: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    t_notificado: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    t_desbloqueado: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    t_ryu: Mapped[datetime | None] = mapped_column(FechaHoraUTC)
+    t_recibido: Mapped[datetime] = mapped_column(FechaHoraUTC, default=ahora_utc)
+    t_explicado: Mapped[datetime | None] = mapped_column(FechaHoraUTC)
+    t_notificado: Mapped[datetime | None] = mapped_column(FechaHoraUTC)
+    t_desbloqueado: Mapped[datetime | None] = mapped_column(FechaHoraUTC)
     # Laboratorio (Fase 6): los incidentes reales quedan con origen="real" y el resto en NULL
     origen: Mapped[str] = mapped_column(String(10), default="real", server_default="real", index=True)
     corrida_id: Mapped[int | None] = mapped_column(ForeignKey("corridas.id"), index=True)
@@ -52,8 +74,8 @@ class Alerta(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     incidente_id: Mapped[int] = mapped_column(ForeignKey("incidentes.id"), index=True)
     payload: Mapped[dict] = mapped_column(JSON)  # cuerpo crudo de C1
-    t_ryu: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    t_recibido: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora_utc)
+    t_ryu: Mapped[datetime | None] = mapped_column(FechaHoraUTC)
+    t_recibido: Mapped[datetime] = mapped_column(FechaHoraUTC, default=ahora_utc)
 
 
 class Auditoria(Base):
@@ -62,7 +84,7 @@ class Auditoria(Base):
     __tablename__ = "auditoria"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora_utc)
+    ts: Mapped[datetime] = mapped_column(FechaHoraUTC, default=ahora_utc)
     evento: Mapped[str] = mapped_column(String(50))
     datos: Mapped[dict | None] = mapped_column(JSON)
     hash_previo: Mapped[str] = mapped_column(String(64))
@@ -91,7 +113,7 @@ class Notificacion(Base):
     codigo_http: Mapped[int | None] = mapped_column(Integer)  # código HTTP final (null si no hubo respuesta)
     error: Mapped[str | None] = mapped_column(String(200))  # texto corto; nunca incluye la URL
     latencia_ms: Mapped[int | None] = mapped_column(Integer)
-    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora_utc)
+    ts: Mapped[datetime] = mapped_column(FechaHoraUTC, default=ahora_utc)
 
 
 class Configuracion(Base):
@@ -107,8 +129,8 @@ class Corrida(Base):
     __tablename__ = "corridas"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    t_inicio: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora_utc)
-    t_fin: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    t_inicio: Mapped[datetime] = mapped_column(FechaHoraUTC, default=ahora_utc)
+    t_fin: Mapped[datetime | None] = mapped_column(FechaHoraUTC)
     estado: Mapped[str] = mapped_column(String(15))  # en_curso | terminada | fallida
     casos: Mapped[list] = mapped_column(JSON)
     conjunto: Mapped[str | None] = mapped_column(String(12))  # desarrollo | validacion | todos | None
@@ -143,8 +165,8 @@ class EjecucionPytest(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     carpeta: Mapped[str] = mapped_column(String(12))
-    t_inicio: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora_utc)
-    t_fin: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    t_inicio: Mapped[datetime] = mapped_column(FechaHoraUTC, default=ahora_utc)
+    t_fin: Mapped[datetime | None] = mapped_column(FechaHoraUTC)
     estado: Mapped[str] = mapped_column(String(15))  # en_curso | terminada | timeout | error
     aprobadas: Mapped[int | None] = mapped_column(Integer)
     fallidas: Mapped[int | None] = mapped_column(Integer)

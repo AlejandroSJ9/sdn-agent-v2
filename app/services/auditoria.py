@@ -1,11 +1,16 @@
-"""Auditoría de solo inserción con cadena de hashes (sha256 encadenado)."""
+"""Auditoría de solo inserción con cadena de HMAC-SHA256 (clave AUDITORIA_CLAVE).
+
+Sin la clave no se puede recalcular la cadena: alterar una fila y rehacer los hashes se detecta.
+"""
 
 import hashlib
+import hmac
 import json
 import threading
 from datetime import datetime, timezone
 from typing import Any
 
+from app.config import get_settings
 from app.db import repository, repository_operador
 
 HASH_INICIAL = "0" * 64
@@ -27,7 +32,8 @@ def _iso_utc(ts: datetime) -> str:
 
 def _calcular_hash(hash_previo: str, evento: str, datos: Any, ts: datetime) -> str:
     contenido = hash_previo + evento + _json_canonico(datos) + _iso_utc(ts)
-    return hashlib.sha256(contenido.encode("utf-8")).hexdigest()
+    clave = get_settings().AUDITORIA_CLAVE.encode("utf-8")
+    return hmac.new(clave, contenido.encode("utf-8"), hashlib.sha256).hexdigest()
 
 
 def registrar(evento: str, datos: dict[str, Any]) -> None:

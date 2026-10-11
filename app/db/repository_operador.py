@@ -62,13 +62,16 @@ def ultimas_notificaciones(ids: list[int]) -> dict[int, dict[str, Any]]:
     if not ids:
         return {}
     consulta = (
-        select(Notificacion.incidente_id, Notificacion.estado, Notificacion.intentos, Notificacion.ts)
+        select(
+            Notificacion.incidente_id, Notificacion.estado, Notificacion.intentos, Notificacion.ts,
+            Notificacion.codigo_http, Notificacion.error,
+        )
         .where(Notificacion.incidente_id.in_(ids))
         .order_by(Notificacion.id)
     )
     with SesionLocal() as sesion:
         filas = sesion.execute(consulta).mappings().all()
-    return {f["incidente_id"]: {"estado": f["estado"], "intentos": f["intentos"], "ts": f["ts"]} for f in filas}
+    return {f["incidente_id"]: {k: v for k, v in f.items() if k != "incidente_id"} for f in filas}
 
 
 def ultimos_eventos_auditoria(limite: int) -> list[Auditoria]:
@@ -94,3 +97,9 @@ def resumen_panel(desde: datetime) -> dict[str, Any]:
             ),
             "ultimo_incidente_id": sesion.scalar(select(func.max(Incidente.id)).where(Incidente.origen == "real")),
         }
+
+
+def incidentes_reales_sin_explicar() -> list[int]:
+    consulta = select(Incidente.id).where(Incidente.origen == "real", Incidente.t_explicado.is_(None))
+    with SesionLocal() as sesion:
+        return list(sesion.scalars(consulta.order_by(Incidente.id)))

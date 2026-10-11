@@ -137,6 +137,9 @@ export async function mostrarDetalle(id) {
       bloque(
         "Última notificación",
         el("p", {}, notif ? [chip(notif.estado), ` ${notif.intentos} intento(s) · `, hora(notif.ts)] : "Sin notificaciones."),
+        notif && (notif.error || notif.codigo_http)
+          ? el("p", { class: "mensaje" }, `Código HTTP: ${notif.codigo_http ?? "—"} · Error: ${notif.error ?? "—"}`)
+          : null,
         boton,
         salida,
       ),

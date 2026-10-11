@@ -2,43 +2,30 @@
 
 Anotar aquí (una línea) lo que no pide la fase actual.
 
-## Sugerencias surgidas en la Fase 0
+## Implementadas en la Fase 6.5 (endurecimiento)
 
-- **[Impacto ALTO] Fijar dependencias transitivas (`requirements.lock` con `pip freeze`).** Hoy solo se fijan las 7 directas; `anyio`, `starlette`, `pydantic-core`, etc. quedan libres. Ya pasó: `anyio 4.15.1` emite un DeprecationWarning dentro de `starlette.testclient`. Una versión futura de una transitiva puede romper `pytest` o el arranque el día de la demo sin cambiar nuestro código. Solución: generar un lock con `pip freeze > requirements.lock` e instalar desde él.
-- **[Impacto ALTO] SQLite con `PRAGMA foreign_keys=ON` y `journal_mode=WAL`.** SQLite ignora las FK por defecto (se podría insertar una alerta con `incidente_id` inexistente). Además, en la Fase 1 el endpoint escribe mientras `BackgroundTasks` escribe en el pipeline, y el modo de journal por defecto bloquea toda la base en cada escritura, lo que provoca `database is locked` en ráfagas. Solución: un listener `connect` en `database.py` que active ambos PRAGMA (no hace falta una dependencia nueva).
-- **[Impacto MEDIO] Proteger la tabla `auditoria` también a nivel de base (triggers `BEFORE UPDATE/DELETE` → `RAISE(ABORT)`).** Hoy el "solo inserción" depende solo de la disciplina del código. Un trigger hace que hasta un error de programación o un `sqlite3` manual falle, y refuerza el argumento de integridad en la tesis. Se combina con `verificar_cadena()` de la Fase 1.
-- **[Impacto MEDIO] Validar en `Settings` que `AGENT_TOKEN` y `OPERADOR_TOKEN` no estén vacíos al arrancar.** Hoy valen `""` por defecto. Si en la Fase 1 la comparación no contempla el vacío, un encabezado vacío podría autenticar. Solución: un validador que haga fallar el arranque (fuera de las pruebas) si faltan, y comparar con `hmac.compare_digest`. *(Fase 1: resuelto en parte — un token vacío ya responde siempre 401 y se compara con `hmac.compare_digest`; falta el aviso al arrancar.)*
-- **[Impacto BAJO] Guardar los `DateTime` siempre en UTC al leerlos.** SQLite no guarda la zona horaria: `DateTime(timezone=True)` devuelve datetimes "naive" al leer, y restar `t_explicado - t_ryu` puede mezclar naive y aware (TypeError). Solución: un `TypeDecorator` que normalice a UTC aware al leer y escribir. Afecta las métricas de tiempo de la Fase 8. *(Fase 1: mitigado en la salida de la API (`FechaUTC`) y en el hash de auditoría (`_iso_utc`); sigue pendiente para cálculos con objetos ORM.)*
-- **[Impacto BAJO] Migraciones (Alembic) en vez de `create_all`.** `create_all` no altera tablas existentes: si la Fase 2 agrega columnas (tokens, latencia), una `sdn_agent.db` previa queda desfasada. Para el MVP basta con borrar la base local; Alembic sería una dependencia nueva, así que solo con aprobación.
+- ✅ **[F0] Dependencias transitivas fijadas:** `requirements.lock` (pip freeze); el README indica instalar desde él.
+- ✅ **[F0] SQLite con `PRAGMA foreign_keys=ON` y `journal_mode=WAL`:** listener `connect` en `database.py`.
+- ✅ **[F0] Auditoría protegida en la base:** triggers `BEFORE UPDATE/DELETE` con `RAISE(ABORT)`.
+- ✅ **[F0] Secretos obligatorios al arrancar:** sin `AGENT_TOKEN`, `OPERADOR_TOKEN` o `AUDITORIA_CLAVE` el agente no arranca (`Settings.verificar_secretos`).
+- ✅ **[F0] Fechas siempre UTC "aware":** `TypeDecorator` `FechaHoraUTC` en las 13 columnas de fecha.
+- ✅ **[F1] Cadena de auditoría con clave:** HMAC-SHA256 con `AUDITORIA_CLAVE` (opción a). Sin la clave, rehacer la cadena se detecta.
+- ✅ **[F1] 429 sin rastro:** ahora queda una advertencia en el log con la IP (sin escribir en la BD). El reintento desde Ryu quedó descartado (abajo).
+- ✅ **[F2] Incidentes sin explicar tras un reinicio:** se reprocesan al arrancar (solo los reales; respeta cupo y `LLM_HABILITADO`).
+- ✅ **[F6] Corridas y pytest "en_curso" tras un reinicio:** se marcan "interrumpida" al arrancar y se audita `recuperacion_al_arrancar`.
 
-## Sugerencias surgidas en la Fase 1
+## Descartadas para el MVP (trabajo futuro)
 
-- **[Impacto MEDIO-ALTO] La cadena de auditoría no tiene clave: quien pueda escribir en la BD puede recalcularla entera.** Un sha256 sin secreto detecta alteraciones ingenuas (lo que prueba `test_auditoria.py`), pero alguien con acceso a `sdn_agent.db` puede cambiar una fila y recalcular todos los hashes siguientes; además, borrar las últimas filas (truncar la cadena) no se detecta. Sin dependencias nuevas: (a) HMAC-SHA256 con una clave en `.env`, o (b) anclar el último hash fuera del agente, por ejemplo incluyéndolo en cada correo de Apps Script (Fase 3), de modo que el buzón actúe como testigo con sello de tiempo. Afecta directamente el argumento de integridad de la tesis.
-- **[Impacto MEDIO] Los locks de agrupación y de auditoría valen solo dentro de un proceso.** Arrancar con `uvicorn --workers N` (o dos instancias) abriría dos incidentes por host y bifurcaría la cadena de hashes. Mitigación: transacciones `BEGIN IMMEDIATE` en SQLite (toman el bloqueo de escritura de toda la base) para buscar-o-crear y para `registrar()`, mediante el evento `begin` de SQLAlchemy; o, como mínimo, dejar escrito "un solo worker" en la guía de demo (Fase 7).
-- **[Impacto MEDIO] Una alerta rechazada con 429 se pierde sin dejar rastro.** Ryu ya bloqueó al host, pero si el agente responde 429 no queda ni incidente ni auditoría de ese bloqueo. Opciones: que Ryu reintente con espera creciente ante un 429 (cambio en `docs/ajustes.md`, requiere a Sebastián), subir `RATE_LIMIT_POR_MIN`, o contar los rechazos en memoria y mostrarlos en el panel (Fase 5). Auditar cada 429 en la BD no conviene: sería otro vector de saturación.
-- **[Impacto BAJO] FastAPI lee y parsea el cuerpo antes de validar el token.** Verificado: un JSON mal formado sin token recibe 422 en vez de 401, y un cliente sin token puede mandar un cuerpo enorme que se carga entero en memoria antes del 401. En localhost el riesgo es bajo; si el agente se expone a la red, limitar el tamaño del cuerpo (middleware que responda 413 si `Content-Length` supera, por ejemplo, 64 KB) o leer el cuerpo a mano después de la dependencia de token.
-- **[Impacto BAJO] La alerta y su fila de auditoría se guardan en transacciones separadas.** `registrar()` abre su propia transacción (su firma no recibe sesión), así que una caída justo entre ambas dejaría una alerta sin auditar. Solución: que `registrar` acepte una sesión opcional y que el lock de auditoría cubra el commit de la transacción externa.
-
-## Sugerencias surgidas en la Fase 2
-
-- Fase 4: incluir umbrales vigentes de Ryu dentro de <datos_red> para que las evidencias comparen valor vs umbral.
-- **[Impacto MEDIO] Si el agente se reinicia con pipelines pendientes, esos incidentes quedan sin explicar.** `BackgroundTasks` vive en memoria. Solución: al arrancar, buscar incidentes con `t_explicado IS NULL` y reprocesarlos (cuidando el cupo).
-- **[Impacto BAJO] `scripts/probar_llm.py` no descuenta su llamada del cupo.** Es deliberado (no toca la BD de producción), pero cada ejecución consume una petición real de OpenRouter que `uso_llm` no ve.
-
-## Sugerencias surgidas en la Fase 3
-
-- **[Impacto BAJO] `/api/notificaciones/prueba` y `/api/incidentes/{id}/reenviar` son síncronos.** Si Apps Script falla de forma reintentable, la respuesta tarda hasta ~54 s (4 intentos de 10 s + esperas de 2/4/8 s) y ocupa un hilo del servidor. Es una acción manual del operador; si molesta en el panel (Fase 5), pasar el envío a `BackgroundTasks` y devolver 202, informando el resultado por WebSocket.
-
-## Sugerencias surgidas en la Fase 4
-
-- **[Impacto BAJO] Si la BD falla justo después de que Ryu confirmó el desbloqueo, el host queda libre sin registro.** `desbloquear_host` llama primero a Ryu (como pide la fase: si Ryu falla, la BD no se toca), pero el caso inverso (Ryu OK y error al marcar `t_desbloqueado` o auditar) devolvería 500 aunque el host ya esté desbloqueado. Mitigación: capturar ese error, registrar `host_desbloqueado_sin_registro` en el log con la IP y responder 200 con una advertencia para que el operador lo sepa.
-
-## Sugerencias surgidas en la Fase 5
-
-- **[Impacto BAJO] Una notificación "omitida" no emite evento (C5 no define `notificacion_omitida`).** La franja del panel se actualiza con `explicacion_lista`, pero si el correo queda omitido la etapa "Notificado" solo cambia al refrescar el incidente. Si molesta en la demo, agregar `notificacion_omitida` a C5 (requiere aprobación del contrato).
-- **[Impacto BAJO] El navegador pide `/favicon.ico` y recibe 404.** Inofensivo; se puede servir un icono local en `app/web/` para limpiar la consola.
-
-## Sugerencias surgidas en la Fase 6
-
-- **[Impacto BAJO] Si el agente se reinicia en medio de una corrida o de un pytest, quedan en estado `en_curso` para siempre.** El candado vive en memoria (se libera al reiniciar), pero la fila no. Solución: al arrancar, marcar como `fallida`/`error` las corridas y ejecuciones que sigan `en_curso`.
-- **[Impacto BAJO] `cupo_consumido.llamadas_llm` cuenta incidentes que llegaron al LLM, no peticiones HTTP.** Un reintento sin `response_format` consume 2 peticiones pero cuenta 1. Para la Fase 8 se puede guardar el número de peticiones por incidente (hoy solo existe agregado por día en `uso_llm`).
+- **[F0] Migraciones con Alembic:** dependencia nueva; en el MVP basta con borrar la `sdn_agent.db` local tras un cambio de esquema.
+- **[F1] Anclar el último hash fuera del agente (p. ej. en cada correo):** el HMAC ya impide rehacer la cadena; truncar las últimas filas sigue sin detectarse y queda como mejora futura.
+- **[F1] Locks válidos entre procesos (`BEGIN IMMEDIATE`):** el agente se arranca con un solo worker; se dejará escrito en la guía de demo (Fase 7).
+- **[F1] Reintento de Ryu ante un 429:** requiere cambiar Ryu-IA (Sebastián) y el límite actual cubre el tráfico esperado.
+- **[F1] Límite de tamaño del cuerpo antes de validar el token:** el agente solo escucha en localhost durante el MVP.
+- **[F1] Alerta y auditoría en la misma transacción:** la ventana de fallo es mínima y exigiría cambiar la firma de `registrar`.
+- **[F2] Umbrales vigentes de Ryu dentro de `<datos_red>`:** implica cambiar el prompt del LLM, fuera del alcance del MVP.
+- **[F2] `scripts/probar_llm.py` no descuenta cupo:** es deliberado (no toca la BD de producción); el script es de uso manual y puntual.
+- **[F3] Endpoints de prueba/reenvío síncronos:** son acciones manuales del operador; la espera solo ocurre si Apps Script falla.
+- **[F4] Host desbloqueado en Ryu sin registro si la BD falla justo después:** caso muy improbable con SQLite local; el error queda en el log.
+- **[F5] Evento `notificacion_omitida`:** requiere cambiar el contrato C5; el panel lo ve al refrescar el incidente.
+- **[F5] `favicon.ico`:** puramente cosmético.
+- **[F6] Contar peticiones HTTP (no incidentes) por corrida:** la aproximación basta para la evaluación y exigiría una columna nueva.

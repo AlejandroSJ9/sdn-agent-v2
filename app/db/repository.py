@@ -197,7 +197,7 @@ def marcar_notificado(incidente_id: int, ts: datetime) -> None:
 
 def ultima_notificacion(incidente_id: int) -> dict[str, Any] | None:
     consulta = (
-        select(Notificacion.estado, Notificacion.intentos, Notificacion.ts)
+        select(Notificacion.estado, Notificacion.intentos, Notificacion.ts, Notificacion.codigo_http, Notificacion.error)
         .where(Notificacion.incidente_id == incidente_id)
         .order_by(Notificacion.id.desc())
         .limit(1)

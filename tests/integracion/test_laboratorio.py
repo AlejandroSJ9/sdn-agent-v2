@@ -36,7 +36,7 @@ def test_corrida_sin_llm_completa_todos_los_casos(cliente, bd_temporal, cabecera
     corrida = _corrida(cliente, cabecera_operador, conjunto="todos")
 
     assert corrida["estado"] == "terminada" and len(corrida["resultados"]) == 18
-    assert {(r["fuente"], r["motivo_respaldo"]) for r in corrida["resultados"]} == {("reglas", "laboratorio")}
+    assert {(r["fuente"], r["motivo_respaldo"]) for r in corrida["resultados"]} == {("reglas", "laboratorio_sin_llm")}
     exactitud = corrida["resumen"]["exactitud_decidibles"]
     # Reglas: ≥2 umbrales → confirmado. Falla solo AM-02 (aceptables: indeterminado/falso_positivo).
     assert exactitud["global"] == {"aciertos": 9, "total": 10, "exactitud": 0.9}

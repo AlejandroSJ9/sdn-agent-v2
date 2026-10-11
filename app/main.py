@@ -16,11 +16,15 @@ from app.api import (
 )
 from app.config import get_settings
 from app.db.database import iniciar_bd
+from app.services import recuperacion
 
 
 @asynccontextmanager
 async def ciclo_vida(_app: FastAPI):
-    iniciar_bd(get_settings().DB_URL)
+    ajustes = get_settings()
+    ajustes.verificar_secretos()  # sin AGENT_TOKEN, OPERADOR_TOKEN y AUDITORIA_CLAVE no se arranca
+    iniciar_bd(ajustes.DB_URL)
+    recuperacion.recuperar_al_arrancar()
     yield
 
 

@@ -21,6 +21,7 @@ def test_cadena_integra(bd_temporal):
 
 def test_alteracion_directa_en_la_bd_se_detecta(bd_temporal):
     _registrar_tres()
-    with bd_temporal.begin() as conexion:
+    with bd_temporal.begin() as conexion:  # quien tiene acceso a la BD puede quitar los triggers (Fase 6.5)
+        conexion.execute(text("DROP TRIGGER auditoria_sin_update"))
         conexion.execute(text("""UPDATE auditoria SET datos = '{"n": 99}' WHERE id = 2"""))
     assert auditoria.verificar_cadena() == {"integra": False, "filas": 3, "primera_rota": 2}

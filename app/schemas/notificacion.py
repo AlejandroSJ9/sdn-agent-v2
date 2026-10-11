@@ -31,6 +31,8 @@ class NotificacionResumen(BaseModel):
     estado: str
     intentos: int
     ts: FechaUTC
+    codigo_http: int | None = None
+    error: str | None = None
 
 
 class IncidenteDetalle(IncidenteSalida):
