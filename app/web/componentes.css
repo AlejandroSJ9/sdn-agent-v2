@@ -4,11 +4,19 @@
 .panel { background: var(--panel); border: 1px solid var(--borde); border-radius: var(--radio); padding: 14px 16px; min-width: 0; }
 .panel-cabecera { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
 .empuje { margin-left: auto; }
-.kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
-.kpi { background: var(--panel); border: 1px solid var(--borde); border-radius: var(--radio); padding: 14px 16px; display: grid; gap: 4px; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+.kpi { background: var(--panel); border: 1px solid var(--borde); border-radius: var(--radio); padding: 14px 16px; display: grid; gap: 4px; align-content: start; }
 .kpi strong { font-size: 28px; font-weight: 600; line-height: 1.1; }
 .kpi span { color: var(--secundario); font-size: 12px; }
-@media (max-width: 1279px) { .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.kpi .kpi-texto { font-size: 16px; line-height: 1.3; }
+.kpi .kpi-modelo { color: var(--texto); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kpi a.kpi-enlace { font-size: 28px; font-weight: 600; line-height: 1.1; color: var(--texto); }
+.kpi a.kpi-enlace:hover { color: var(--acento); }
+.kpi-veredictos { grid-column: span 2; }
+.trio { display: flex; gap: 20px; flex-wrap: wrap; }
+.trio > span { display: grid; }
+.trio small { font-size: 11px; }
+.txt-critica { color: var(--critica); } .txt-alta { color: var(--alta); } .txt-ok { color: var(--ok); }
 
 /* ---- Chips de estado (barra superior) ---- */
 .chip-estado {
@@ -118,14 +126,7 @@ tbody tr.clic:hover { background: var(--elevado); }
 .json { max-height: 260px; margin: 10px 0 0; }
 .consola { min-height: 80px; max-height: 320px; margin: 8px 0 0; color: var(--texto); }
 
-/* ---- Detalle del incidente: panel lateral derecho ---- */
-.panel-lateral {
-  position: fixed; top: var(--alto-barra); right: 0; bottom: 0; width: 480px; max-width: 100%;
-  background: var(--elevado); border-left: 1px solid var(--borde); padding: 16px 20px 32px; overflow-y: auto; z-index: 8;
-  animation: aparecer 150ms ease-out;
-}
-@media (max-width: 1023px) { .panel-lateral { width: 100%; } }
-.panel-lateral > h2 { display: flex; align-items: center; gap: 8px; padding-bottom: 10px; border-bottom: 1px solid var(--borde); }
+/* ---- Detalle del incidente (página completa) ---- */
 .detalle-grid { display: grid; grid-template-columns: 150px 1fr; gap: 6px 12px; margin: 0; font-size: 13px; }
 .detalle-grid dt { color: var(--secundario); }
 .detalle-grid dd { margin: 0; }
@@ -165,3 +166,32 @@ tr.verificado td:first-child { box-shadow: inset 3px 0 0 var(--acento); }
 /* ---- Informe auditable (Fase 6.8b) ---- */
 .no-disponible { color: var(--secundario); font-style: italic; }
 .bloque.informe h3 { color: var(--acento); }
+
+/* ---- Detalle a página completa: barras de desviación, factores y plegables ---- */
+.desviacion { display: inline-flex; align-items: center; gap: 6px 8px; flex-wrap: wrap; }
+.barra-desv { position: relative; display: inline-block; width: 90px; height: 8px; border-radius: 4px; background: var(--fondo); border: 1px solid var(--borde); }
+.barra-desv::before { content: ""; position: absolute; inset: 0 auto 0 0; width: var(--ancho); background: var(--info); border-radius: 0 4px 4px 0; }
+.barra-desv.supera::before { background: var(--alta); }
+.barra-desv::after { content: ""; position: absolute; top: -3px; bottom: -3px; left: var(--umbral); width: 2px; background: var(--texto); }
+.factores { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.factor { display: grid; gap: 4px; }
+.barra.peso { max-width: 260px; }
+.barra.peso.critica > span { background: var(--critica); }
+.barra.peso.alta > span { background: var(--alta); }
+.barra.peso.info > span { background: var(--info); }
+.hash { overflow-wrap: anywhere; }
+.plegable > summary { cursor: pointer; font-weight: 600; }
+.plegable[open] > summary { margin-bottom: 10px; }
+.json.crudo { max-height: 480px; }
+.boton-enlace { display: inline-block; padding: 6px 12px; border: 1px solid var(--borde); border-radius: var(--radio); background: var(--elevado); color: var(--texto); font-size: 13px; }
+.boton-enlace:hover { text-decoration: none; border-color: var(--secundario); }
+
+/* ---- Mini-gráfico por hora (SVG) ---- */
+.grafico { width: 100%; }
+.svg-horas { display: block; width: 100%; height: auto; }
+.svg-horas .guia { stroke: var(--borde); stroke-width: 1; }
+.svg-horas .eje { fill: var(--secundario); font: 11px var(--mono); }
+.svg-horas .zona { fill: transparent; }
+.svg-horas .dato { fill: var(--acento); }
+.svg-horas .franja:hover .zona { fill: var(--elevado); }
+.svg-horas .franja:hover .dato { fill: #5b95f7; }

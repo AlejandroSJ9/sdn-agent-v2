@@ -2,10 +2,12 @@
 
 import { api } from "./api.js";
 import { $, badge, el, hora, mensaje, vaciar } from "./dom.js";
+import { pintarAtencion } from "./tablero.js";
 
 let ipEnModal = null;
 
-function abrirModal(ip) {
+// También lo usa la cabecera del detalle del incidente: mismo flujo (IP exacta + motivo + clasificación).
+export function abrirModal(ip) {
   ipEnModal = ip;
   vaciar($("modal-ip"), ip);
   $("modal-confirmacion").value = "";
@@ -80,6 +82,7 @@ export async function refrescarBloqueados() {
   try {
     const lista = await api("/api/ryu/bloqueados");
     vaciar($("res-bloqueados"), lista.length);
+    pintarAtencion(lista);
     if (!lista.length) {
       vaciar(contenedor, el("p", { class: "mensaje" }, "Ningún host bloqueado en Ryu."));
       return;
@@ -111,6 +114,7 @@ export async function refrescarBloqueados() {
     );
   } catch (error) {
     vaciar($("res-bloqueados"), "—");
+    pintarAtencion(null);
     vaciar(contenedor, el("p", { class: "mensaje error" }, `Ryu no disponible: ${error.message}`));
   }
 }

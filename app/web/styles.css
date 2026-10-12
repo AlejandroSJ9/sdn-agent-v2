@@ -101,6 +101,27 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .resumen-principal { display: grid; gap: 16px; min-width: 0; }
 .vista-configuracion { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); align-items: start; }
 
+.tablero { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+
+/* ---- Detalle del incidente: cabecera fija, resumen y grilla XAI 2×2 ---- */
+.pagina-detalle { display: grid; gap: 16px; min-width: 0; }
+.cabecera-detalle {
+  position: sticky; top: var(--alto-barra); z-index: 5; display: grid; gap: 10px;
+  margin: -16px -20px 0; padding: 12px 20px; background: var(--elevado); border-bottom: 1px solid var(--borde);
+}
+.cabecera-detalle h2 { font-size: 17px; }
+.campos { display: flex; flex-wrap: wrap; gap: 8px 24px; }
+.campo { display: grid; gap: 2px; }
+.campo-titulo { color: var(--secundario); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+.tarjeta > h2 { margin-bottom: 10px; }
+.destacada { border-left: 3px solid var(--acento); }
+.grilla-xai { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+@media (max-width: 899px) {
+  .grilla-xai, .tablero { grid-template-columns: minmax(0, 1fr); }
+  .cabecera-detalle { margin: -16px -12px 0; padding: 10px 12px; }
+  .contenido { padding: 16px 12px 32px; }
+}
+
 .avisos:empty { display: none; }
 .avisos { display: grid; gap: 8px; margin-bottom: 16px; }
 

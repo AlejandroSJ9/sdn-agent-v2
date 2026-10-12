@@ -2,6 +2,7 @@
 
 import { api } from "./api.js";
 import { $, el, hora, mensaje, vaciar } from "./dom.js";
+import { refrescarResumen } from "./tablero.js";
 
 let configActual = null;
 
@@ -99,20 +100,6 @@ async function refrescarConfig() {
     if (document.activeElement !== $("campo-historial")) $("campo-historial").value = configActual.HISTORIAL_DIAS;
     if (document.activeElement !== $("campo-campana")) $("campo-campana").value = configActual.CAMPANA_MINUTOS;
   } catch { /* sin cambios */ }
-}
-
-export async function refrescarResumen() {
-  try {
-    const r = await api("/api/resumen");
-    vaciar($("res-abiertos"), r.incidentes_abiertos);
-    vaciar($("res-hoy"), r.incidentes_hoy);
-    vaciar($("res-fallidas"), r.notificaciones_fallidas_hoy);
-    const ultimo = r.ultimo_incidente_id;
-    vaciar($("res-ultimo"), ultimo ? el("a", { href: `#/incidentes/${ultimo}` }, `#${ultimo} →`) : "—");
-    return r;
-  } catch {
-    return null;
-  }
 }
 
 export function refrescarEstado() {

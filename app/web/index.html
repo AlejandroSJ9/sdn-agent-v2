@@ -49,25 +49,33 @@
     <div id="avisos" class="avisos" role="status"></div>
     <div id="detalle-rechazadas" class="aviso-franja" hidden></div>
 
-    <!-- Resumen -->
+    <!-- Resumen: tablero del operador (lo arma tablero.js con /api/resumen y /api/ryu/bloqueados) -->
     <section data-vista="resumen" class="vista vista-resumen">
       <div class="resumen-principal">
-        <div class="kpis">
-          <div class="kpi"><strong id="res-abiertos" class="mono">—</strong><span>Incidentes abiertos</span></div>
+        <div class="kpis" aria-label="Indicadores de hoy (día UTC)">
           <div class="kpi"><strong id="res-hoy" class="mono">—</strong><span>Incidentes hoy</span></div>
-          <div class="kpi"><strong id="res-bloqueados" class="mono">—</strong><span>Hosts bloqueados</span></div>
-          <div class="kpi"><strong id="res-fallidas" class="mono">—</strong><span>Notificaciones fallidas hoy</span></div>
-          <div class="kpi">
-            <strong id="res-cupo" class="mono">—</strong><span>Cupo LLM usado</span>
-            <span class="barra"><span id="cupo-barra"></span></span>
-          </div>
+          <div class="kpi"><strong id="res-bloqueados" class="mono">—</strong><span>Hosts bloqueados ahora</span></div>
+          <div class="kpi kpi-veredictos"><span class="trio"><span><strong id="res-confirmados" class="mono txt-critica">—</strong><small>confirmados</small></span><span><strong id="res-indeterminados" class="mono txt-alta">—</strong><small>indeterminados</small></span><span><strong id="res-falsos" class="mono txt-ok">—</strong><small>falsos positivos</small></span></span><span>Veredictos hoy</span></div>
+          <div class="kpi"><a id="res-recomendaciones" class="mono kpi-enlace" href="#/recomendaciones">—</a><span>Recomendaciones pendientes</span></div>
+          <div class="kpi"><strong id="res-tiempo" class="mono">—</strong><span>Tiempo medio Ryu → explicado (hoy)</span></div>
+          <div class="kpi"><strong id="res-llm" class="kpi-texto">—</strong><span id="res-modelo" class="mono kpi-modelo">—</span><span class="barra" role="presentation"><span id="cupo-barra"></span></span><span>Cupo del día <span id="res-cupo" class="mono">—</span></span></div>
         </div>
+        <div class="tablero">
+          <section class="panel" aria-labelledby="titulo-atencion">
+            <header class="panel-cabecera"><h2 id="titulo-atencion">Requiere atención</h2><span class="secundario">hosts bloqueados · severidad y antigüedad</span></header>
+            <div id="atencion" class="tabla-contenedor"></div>
+          </section>
+          <section class="panel" aria-labelledby="titulo-por-hora">
+            <header class="panel-cabecera"><h2 id="titulo-por-hora">Incidentes por hora</h2><span class="secundario">últimas 24 h · hora local</span></header>
+            <div id="grafico-horas" class="grafico"></div>
+          </section>
+        </div>
+        <section class="panel" aria-labelledby="titulo-actividad">
+          <header class="panel-cabecera"><h2 id="titulo-actividad">Actividad reciente</h2><span class="secundario">últimos 10 incidentes reales</span><span class="empuje secundario">Abiertos: <span id="res-abiertos" class="mono">—</span> · Correos fallidos hoy: <span id="res-fallidas" class="mono">—</span></span></header>
+          <div id="actividad" class="tabla-contenedor"></div>
+        </section>
         <section class="panel">
-          <header class="panel-cabecera">
-            <h2>Flujo del último incidente</h2>
-            <span id="flujo-titulo" class="mono secundario"></span>
-            <span class="empuje">Último incidente: <span id="res-ultimo" class="mono">—</span></span>
-          </header>
+          <header class="panel-cabecera"><h2>Flujo del último incidente</h2><span id="flujo-titulo" class="mono secundario"></span><span class="empuje">Último incidente: <span id="res-ultimo" class="mono">—</span></span></header>
           <div id="flujo" class="flujo"></div>
         </section>
       </div>
@@ -77,6 +85,9 @@
         <pre id="evento-json" class="json" hidden></pre>
       </aside>
     </section>
+
+    <!-- Detalle del incidente a página completa (#/incidentes/<id>): lo arma detalle.js -->
+    <section data-vista="detalle" class="vista" hidden><article id="detalle" class="pagina-detalle" aria-label="Detalle del incidente"></article></section>
 
     <!-- Incidentes -->
     <section data-vista="incidentes" class="vista" hidden>
@@ -218,9 +229,6 @@
       </section>
     </section>
   </main>
-
-  <!-- Detalle del incidente: panel lateral derecho (#/incidentes/<id>) -->
-  <aside id="detalle" class="panel-lateral" hidden aria-label="Detalle del incidente"></aside>
 
   <!-- Desbloqueo: exige escribir la IP exacta y un motivo -->
   <div id="modal" class="velo" hidden>

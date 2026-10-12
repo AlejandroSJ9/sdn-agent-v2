@@ -11,7 +11,8 @@ MODULOS = {"api.js", "ws.js", "estado.js", "bloqueados.js", "incidentes.js", "um
            "auditoria.js", "main.js", "dom.js", "laboratorio.js", "pruebas.js",  # Fase 6: + laboratorio y pruebas
            "contexto.js", "comparar.js",  # Fase 6.7: contexto usado y comparar corridas
            "politica.js", "recomendaciones.js",  # Fase 6.8: decisión acotada
-           "informe.js"}  # Fase 6.8b: informe auditable
+           "informe.js",  # Fase 6.8b: informe auditable
+           "detalle.js", "tablero.js", "grafico.js"}  # rediseño: detalle a página completa y tablero
 EXTERNO = re.compile(r"""(?:src|href|action)\s*=\s*["']?\s*(?:https?:)?//""", re.IGNORECASE)
 
 

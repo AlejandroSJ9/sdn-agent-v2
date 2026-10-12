@@ -7,8 +7,10 @@ import { iniciarComparar, refrescarCorridasComparables } from "./comparar.js";
 import { iniciarPolitica, refrescarPolitica } from "./politica.js";
 import { iniciarRecomendaciones, refrescarRecomendaciones } from "./recomendaciones.js";
 import { $, agrupar, mensaje } from "./dom.js";
-import { iniciarEstado, marcarConexion, refrescarEstado, refrescarResumen } from "./estado.js";
-import { detalleAbierto, iniciarIncidentes, mostrarDetalle, ocultarDetalle, refrescarIncidentes } from "./incidentes.js";
+import { detalleAbierto, mostrarDetalle, ocultarDetalle } from "./detalle.js";
+import { iniciarEstado, marcarConexion, refrescarEstado } from "./estado.js";
+import { iniciarIncidentes, refrescarIncidentes } from "./incidentes.js";
+import { refrescarActividad, refrescarResumen } from "./tablero.js";
 import { agregarEvento, incidenteDelFlujo, seguirIncidente } from "./timeline.js";
 import * as laboratorio from "./laboratorio.js";
 import * as pruebas from "./pruebas.js";
@@ -22,6 +24,7 @@ const refrescar = {
   bloqueados: agrupar(refrescarBloqueados),
   incidentes: agrupar(refrescarIncidentes),
   resumen: agrupar(refrescarResumen),
+  actividad: agrupar(refrescarActividad),
   auditoria: agrupar(refrescarAuditoria),
   estado: agrupar(refrescarEstado),
   umbrales: agrupar(refrescarUmbrales),
@@ -37,19 +40,29 @@ function cerrarMenu() {
 }
 
 // Rutas: #/resumen (por defecto), #/incidentes, #/bloqueados, #/laboratorio, #/auditoria, #/configuracion.
-// #/incidentes/<id> abre la vista Incidentes con el detalle (el enlace del correo depende de ella).
-function enrutar() {
-  const detalle = location.hash.match(/^#\/incidentes\/(\d+)$/);
-  const pedida = detalle ? "incidentes" : (location.hash.match(/^#\/([a-z]+)$/) || [])[1];
-  const vista = VISTAS.includes(pedida) ? pedida : "resumen";
+// #/incidentes/<id> abre el detalle a página completa (el enlace del correo depende de esta ruta).
+// "Volver" regresa a la vista desde la que se abrió (por defecto, Incidentes).
+const RUTA_DETALLE = /^#\/incidentes\/(\d+)$/;
+
+function enrutar(evento) {
+  const detalle = location.hash.match(RUTA_DETALLE);
+  const pedida = detalle ? "detalle" : (location.hash.match(/^#\/([a-z]+)$/) || [])[1];
+  const vista = detalle || VISTAS.includes(pedida) ? pedida : "resumen";
+  const marcada = detalle ? "incidentes" : vista;
   document.querySelectorAll("[data-vista]").forEach((seccion) => { seccion.hidden = seccion.dataset.vista !== vista; });
   document.querySelectorAll("[data-nav]").forEach((enlace) => {
-    if (enlace.dataset.nav === vista) enlace.setAttribute("aria-current", "page");
+    if (enlace.dataset.nav === marcada) enlace.setAttribute("aria-current", "page");
     else enlace.removeAttribute("aria-current");
   });
   cerrarMenu();
-  if (detalle) mostrarDetalle(Number(detalle[1]));
-  else ocultarDetalle();
+  if (!detalle) {
+    ocultarDetalle();
+    return;
+  }
+  const anterior = evento?.oldURL ? new URL(evento.oldURL).hash : "";
+  const desde = !evento || RUTA_DETALLE.test(anterior) ? null : anterior || "#/resumen";
+  if (desde !== null || !evento) window.scrollTo(0, 0);
+  mostrarDetalle(Number(detalle[1]), desde);
 }
 
 function alEventoDePrueba(evento) {
@@ -84,18 +97,24 @@ function alEvento(evento) {
       if (!dePrueba) refrescar.bloqueados();
       break;
     case "explicacion_lista":
+      if (!dePrueba) refrescar.bloqueados(); // "Requiere atención" muestra el veredicto recién explicado
+      break;
     case "notificacion_enviada":
     case "notificacion_fallida":
       break;
     case "host_desbloqueado":
       refrescar.bloqueados();
-      (datos.incidentes || []).forEach((i) => { if (i === incidenteDelFlujo()) seguirIncidente(i); });
+      (datos.incidentes || []).forEach((i) => {
+        if (i === incidenteDelFlujo()) seguirIncidente(i);
+        if (i === detalleAbierto()) mostrarDetalle(i);
+      });
       break;
     case "config_cambiada":
     case "modo_decision_cambiado":
       refrescar.estado();
       refrescar.umbrales();
       refrescar.politica();
+      refrescar.resumen(); // estado del LLM en el tablero
       return;
     case "recomendacion_creada":
     case "recomendacion_resuelta":
@@ -110,6 +129,7 @@ function alEvento(evento) {
   }
   refrescar.incidentes();
   refrescar.resumen();
+  refrescar.actividad();
   if (id && id === incidenteDelFlujo()) seguirIncidente(id);
   if (id && id === detalleAbierto()) mostrarDetalle(id);
 }
@@ -134,6 +154,7 @@ async function arrancarPanel() {
   if (resumen && resumen.ultimo_incidente_id) seguirIncidente(resumen.ultimo_incidente_id);
   refrescarBloqueados();
   refrescarIncidentes();
+  refrescarActividad();
   refrescarUmbrales();
   refrescarAuditoria();
   verificarCadena();

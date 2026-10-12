@@ -74,3 +74,15 @@ export function badge(texto, clase = "") {
 export function mono(texto) {
   return el("span", { class: "mono" }, texto ?? "—");
 }
+
+// Veredicto final (informativo) y dictamen del historial con color de estado; el texto siempre acompaña al color.
+const CLASE_VEREDICTO = { confirmado: "critica", indeterminado: "alta", falso_positivo: "ok" };
+const CLASE_DICTAMEN = { agravante: "critica", atenuante: "ok" };
+
+export function badgeVeredicto(veredicto) {
+  return badge(veredicto ? veredicto.replace("_", " ") : "pendiente", CLASE_VEREDICTO[veredicto] ?? "info");
+}
+
+export function badgeDictamen(dictamen) {
+  return badge(dictamen ?? "ninguno", CLASE_DICTAMEN[dictamen] ?? "info");
+}
