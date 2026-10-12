@@ -42,3 +42,4 @@ class IncidenteDetalle(IncidenteSalida):
     ultima_notificacion: NotificacionResumen | None = None
     metricas: Metricas | None = None
     umbrales_superados: list[str] | None = None
+    acciones: list[dict] | None = None  # acciones ejecutadas, simuladas o fallidas (de la auditoría)

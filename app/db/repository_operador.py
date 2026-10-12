@@ -18,14 +18,15 @@ def incidentes_abiertos_de(ip: str) -> list[int]:
         return list(sesion.scalars(consulta.order_by(Incidente.id)))
 
 
-def marcar_desbloqueados(ids: list[int], ts: datetime) -> None:
+def marcar_desbloqueados(ids: list[int], ts: datetime, clasificacion: str | None = None, motivo: str | None = None) -> None:
+    """Desbloqueo y conclusión del operador (C6): la clasificación alimenta el contexto de incidentes futuros."""
     if not ids:
         return
     with SesionLocal.begin() as sesion:
         sesion.execute(
             update(Incidente)
             .where(Incidente.id.in_(ids), Incidente.t_desbloqueado.is_(None))
-            .values(t_desbloqueado=ts)
+            .values(t_desbloqueado=ts, clasificacion_operador=clasificacion, motivo_operador=motivo)
         )
 
 
@@ -81,7 +82,7 @@ def ultimos_eventos_auditoria(limite: int) -> list[Auditoria]:
 
 def resumen_panel(desde: datetime) -> dict[str, Any]:
     """Tarjetas del panel: solo incidentes REALES (el laboratorio tiene su propia sección)."""
-    reales = select(Incidente.id).where(Incidente.origen == "real")
+    reales = select(Incidente.id).where(Incidente.origen == "real", Incidente.sembrado.is_(False))
     de_prueba = select(Incidente.id).where(Incidente.origen == "prueba")
     with SesionLocal() as sesion:
         contar = lambda consulta: sesion.scalar(select(func.count()).select_from(consulta.subquery()))  # noqa: E731
@@ -95,11 +96,16 @@ def resumen_panel(desde: datetime) -> dict[str, Any]:
                     or_(Notificacion.incidente_id.is_(None), Notificacion.incidente_id.not_in(de_prueba)),
                 )
             ),
-            "ultimo_incidente_id": sesion.scalar(select(func.max(Incidente.id)).where(Incidente.origen == "real")),
+            "ultimo_incidente_id": sesion.scalar(
+                select(func.max(Incidente.id)).where(Incidente.origen == "real", Incidente.sembrado.is_(False))
+            ),
         }
 
 
 def incidentes_reales_sin_explicar() -> list[int]:
-    consulta = select(Incidente.id).where(Incidente.origen == "real", Incidente.t_explicado.is_(None))
+    """Nunca incluye sembrados: se crean sin explicar a propósito y no deben ir al pipeline."""
+    consulta = select(Incidente.id).where(
+        Incidente.origen == "real", Incidente.sembrado.is_(False), Incidente.t_explicado.is_(None)
+    )
     with SesionLocal() as sesion:
         return list(sesion.scalars(consulta.order_by(Incidente.id)))

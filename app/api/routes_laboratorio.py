@@ -1,12 +1,12 @@
 """Rutas del laboratorio (operador): escenarios, corridas, pytest desde el panel y exportaciones."""
 
-from typing import Literal
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Response, status
 
 from app.api.routes_alertas import verificar_token_operador
 from app.schemas.laboratorio import CorridaEntrada, PytestEntrada
-from app.services import laboratorio, pytest_panel, resultados_lab
+from app.services import comparacion, laboratorio, pytest_panel, resultados_lab
 
 router = APIRouter(prefix="/api", dependencies=[Depends(verificar_token_operador)])
 
@@ -36,7 +36,8 @@ def iniciar_corrida(entrada: CorridaEntrada, tareas: BackgroundTasks) -> dict:
     try:
         return laboratorio.iniciar_corrida(
             entrada.casos, entrada.conjunto, entrada.usar_llm, entrada.repeticiones, entrada.enviar_correos,
-            tareas.add_task,
+            tareas.add_task, variante=entrada.variante, modo_decision=entrada.modo_decision,
+            umbral_confianza=entrada.umbral_confianza,
         )
     except laboratorio.CasoDesconocido as error:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(error)) from error
@@ -49,6 +50,36 @@ def iniciar_corrida(entrada: CorridaEntrada, tareas: BackgroundTasks) -> dict:
 @router.get("/laboratorio/corridas")
 def listar_corridas() -> list[dict]:
     return laboratorio.listar_corridas()
+
+
+def _ids_corridas(corridas: Annotated[str, Query(max_length=100, description="ids separados por coma")]) -> list[int]:
+    try:
+        return [int(parte) for parte in corridas.split(",") if parte.strip()]
+    except ValueError:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "corridas debe ser una lista de ids: 1,2,3") from None
+
+
+def _comparar(funcion, ids: list[int]):
+    try:
+        return funcion(ids)
+    except comparacion.ComparacionInvalida as error:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(error)) from error
+
+
+@router.get("/laboratorio/comparar")
+def comparar_corridas(ids: Annotated[list[int], Depends(_ids_corridas)]) -> dict:
+    return _comparar(comparacion.comparar, ids)
+
+
+@router.get("/export/comparar.json")
+def exportar_comparacion_json(ids: Annotated[list[int], Depends(_ids_corridas)]) -> dict:
+    """Incluye el campo "hipotesis" (H1–H3 y la limitación) para que queden junto a los resultados."""
+    return _comparar(comparacion.exportar_json, ids)
+
+
+@router.get("/export/comparar.csv")
+def exportar_comparacion_csv(ids: Annotated[list[int], Depends(_ids_corridas)]) -> Response:
+    return _csv(_comparar(comparacion.exportar_csv, ids), "comparacion.csv")
 
 
 @router.get("/laboratorio/corridas/{corrida_id}")

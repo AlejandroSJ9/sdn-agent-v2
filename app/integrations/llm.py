@@ -28,6 +28,7 @@ class RespuestaLLM:
     tokens_salida: int
     latencia_ms: int
     peticiones: int
+    modelo: str | None = None  # el modelo que se ENVIÓ en la petición (trazabilidad del informe)
 
 
 class ClienteLLM(Protocol):
@@ -111,4 +112,5 @@ class ClienteOpenRouter:
             tokens_salida=int(uso.get("completion_tokens") or 0),
             latencia_ms=latencia_ms,
             peticiones=peticiones,
+            modelo=self._modelo,
         )

@@ -9,7 +9,7 @@ from app.db import repository
 from app.integrations import appscript
 from app.schemas.alerta import IncidenteSalida
 from app.schemas.notificacion import PayloadC3, ResultadoNotificacion
-from app.services import auditoria, eventos
+from app.services import auditoria, eventos, informe as informe_svc
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +37,38 @@ def _linea_veredicto(incidente: IncidenteSalida) -> str:
         f"Veredicto: {incidente.veredicto or '—'} | Severidad: {incidente.severidad or '—'} | "
         f"Técnica MITRE: {incidente.tecnica_mitre or '—'}"
     )
+
+
+def _linea_contexto(incidente: IncidenteSalida) -> str:
+    """Una línea con lo que aportó el contexto (C6), o "no utilizado"."""
+    contexto = incidente.contexto_usado
+    if incidente.variante != "con_contexto" or not contexto:
+        return "Contexto: no utilizado"
+    resumen = contexto.get("resumen", {})
+    linea = (
+        f"Contexto: {resumen.get('total_previos', 0)} incidentes previos del host "
+        f"({resumen.get('falsos_positivos_operador', 0)} falsos positivos verificados"
+    )
+    if resumen.get("amenazas_contenidas_operador"):
+        linea += f", {resumen['amenazas_contenidas_operador']} amenazas contenidas"
+    linea += ")"
+    otros = len(contexto.get("actividad_red", []))
+    return f"{linea} y {otros} en otros hosts recientemente" if otros else linea
+
+
+_ACCION_TEXTO = {"pasar_a_cuarentena": "pasar a cuarentena", "escalar_a_drop": "volver a bloqueo total"}
+
+
+def _linea_accion(incidente: IncidenteSalida) -> str:
+    """Una línea con lo que decidió la política (C7)."""
+    accion = _ACCION_TEXTO.get(incidente.accion_propuesta or "")
+    if incidente.accion_final == "pasar_a_cuarentena":
+        return "Acción: pasado a cuarentena automáticamente por la política"
+    if incidente.accion_final == "escalar_a_drop":
+        return "Acción: vuelto a bloqueo total automáticamente por la política"
+    if incidente.accion_final in ("recomendada", "fallida") and accion:
+        return f"Recomendación pendiente: {accion}"
+    return "Acción: se mantiene el bloqueo total"
 
 
 def construir_payload(
@@ -81,13 +113,21 @@ def construir_payload(
         asunto = f"[SDN] Host {incidente.host_origen} aislado por posible movimiento lateral"
         explicacion = " ".join((incidente.explicacion or "—").split())[:MAX_EXPLICACION]
         fuente = {"llm": "LLM", "reglas": "reglas"}.get(incidente.fuente_explicacion or "", "—")
-        lineas = [
-            _linea_veredicto(incidente),
-            f"Explicación: {explicacion}",
-            f"Alertas agrupadas: {incidente.contador_alertas} | Fuente de la explicación: {fuente}",
-            f"Hora de detección (UTC): {_hora(fecha)}",
-            CIERRE_INCIDENTE,
-        ]
+        if incidente.informe:  # Fase 6.8b: una línea por dimensión del informe + enlace (C3: 3 a 6 líneas)
+            evidencia, mitre, razonamiento, _ = informe_svc.lineas(incidente.informe, incidente.severidad)
+            lineas = [evidencia, mitre, f"{razonamiento} · {_linea_contexto(incidente)}",  # contexto: Fase 6.7
+                      _linea_accion(incidente),  # acción: mismas frases de la Fase 6.8
+                      f"Informe completo: {panel}/#/incidentes/{incidente.id}"]
+        else:  # incidentes previos a la Fase 6.8b (sin informe)
+            lineas = [
+                _linea_veredicto(incidente),
+                f"Explicación: {explicacion}",
+                # C3 permite 3 a 6 líneas: el contexto va en la misma línea que la fuente
+                f"Alertas agrupadas: {incidente.contador_alertas} | Fuente de la explicación: {fuente} | {_linea_contexto(incidente)}",
+                _linea_accion(incidente),
+                f"Hora de detección (UTC): {_hora(fecha)}",
+                CIERRE_INCIDENTE,
+            ]
     return PayloadC3(
         tipo=tipo,
         incidente_id=incidente.id,

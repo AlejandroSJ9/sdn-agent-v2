@@ -1,0 +1,24 @@
+{
+  "timestamp": "2026-10-11T05:12:33.418207Z",
+  "alerta_nivel": "CRITICO",
+  "host_origen": "10.0.10.3",
+  "dpid_switch": "0x0000000000000001",
+  "contexto_topologico": "VLAN OPS (ID=10), subred 10.0.10.0/24",
+  "metricas": {
+    "M1_nuevos_flujos_por_30s": 24.0,
+    "M2_destinos_unicos_por_30s": 9.0,
+    "M3_smb_anomalo": false,
+    "M3_duracion_seg": null,
+    "M3_bytes": null,
+    "M4_packet_in_por_min": 38.0,
+    "M5_flujos_east_west": true,
+    "M5_count": 6.0
+  },
+  "puntaje_total": 85,
+  "puntaje_maximo": 135,
+  "pesos_metricas": {"M1": 25, "M2": 20, "M5": 40},
+  "umbrales_superados": ["M1", "M2", "M5"],
+  "ioc_activados": ["IOC-01", "IOC-04", "IOC-05", "IOC-07"],
+  "accion_ryu_previa": "OFPFlowMod DROP prioridad 100 — 10.0.10.3 aislado",
+  "solicitud_al_agente": "Analiza el incidente. Responde SOLO con un JSON con estos campos: veredicto (confirmado/falso_positivo/indeterminado/ya_contenido), severidad (critica/alta/media), confianza (0-100), nivel_autonomia (1/2/3), acciones_automaticas (lista), acciones_pendientes_aprobacion (lista), hosts_en_riesgo (lista de IPs), mensaje_telegram (texto para el operador SOC), recomendaciones_forenses (lista), actualizar_estado_red ({nivel_alerta_red: NORMAL|MEDIO|ALTO|CRITICO})."
+}

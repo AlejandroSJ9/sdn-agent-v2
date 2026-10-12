@@ -63,3 +63,13 @@ def test_reparto_de_decidibles():
     assert len(decidibles) == 10
     assert sum(c["conjunto"] == "desarrollo" for c in decidibles) == 6
     assert sum(c["conjunto"] == "validacion" for c in decidibles) == 4
+
+
+def test_decidibles_con_contexto_conjunto_comun_de_14():
+    con = {c["id"] for c in CASOS if c["decidible_con_contexto"]}
+    sin = {c["id"] for c in CASOS if c["decidible_v2"]}
+    assert len(sin) == 10 and len(con) == 14
+    assert con - sin == {"AT-09", "AT-10", "LG-05", "DU-01"}
+    assert {c["id"] for c in CASOS} - con == {"LG-01", "LG-02", "LG-03", "LG-04"}  # dependen de la whitelist
+    for caso in CASOS:  # todo lo que se siembra viene literal de la v1
+        assert caso["contexto_v1"] == V1[caso["id"]]["contexto"]

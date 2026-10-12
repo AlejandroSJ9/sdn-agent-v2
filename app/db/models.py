@@ -66,6 +66,23 @@ class Incidente(Base):
     corrida_id: Mapped[int | None] = mapped_column(ForeignKey("corridas.id"), index=True)
     caso_id: Mapped[str | None] = mapped_column(String(10))
     repeticion: Mapped[int | None] = mapped_column(Integer)
+    # Fase 6.7: contexto dinámico (docs/contratos.md C6)
+    clasificacion_operador: Mapped[str | None] = mapped_column(String(20))  # falso_positivo | amenaza_contenida | otro
+    motivo_operador: Mapped[str | None] = mapped_column(String(200))
+    variante: Mapped[str | None] = mapped_column(String(15))  # sin_contexto | con_contexto (null = sin explicar)
+    version_prompt: Mapped[str | None] = mapped_column(String(30))
+    contexto_usado: Mapped[dict | None] = mapped_column(JSON)  # exactamente lo enviado; null sin contexto
+    sembrado: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")  # historial del laboratorio
+    # Fase 6.8: decisión acotada (C4 extensión y C7)
+    accion_propuesta: Mapped[str | None] = mapped_column(String(20))  # mantener | pasar_a_cuarentena | escalar_a_drop
+    justificacion_accion: Mapped[str | None] = mapped_column(String(300))
+    decision_politica: Mapped[str | None] = mapped_column(String(12))  # ejecutar | recomendar | descartar
+    motivos_politica: Mapped[list | None] = mapped_column(JSON)
+    accion_final: Mapped[str | None] = mapped_column(String(30))  # ninguna | <acción> | recomendada | fallida (+ _simulada)
+    # Fase 6.8a+b: dictamen determinista e informe auditable. "veredicto" es el veredicto FINAL.
+    informe: Mapped[dict | None] = mapped_column(JSON)
+    veredicto_llm: Mapped[str | None] = mapped_column(String(20))  # del LLM (o de las reglas si hubo respaldo)
+    dictamen_historial: Mapped[str | None] = mapped_column(String(20))  # agravante | atenuante | null
 
 
 class Alerta(Base):
@@ -138,6 +155,10 @@ class Corrida(Base):
     enviar_correos: Mapped[bool] = mapped_column(Boolean)
     repeticiones: Mapped[int] = mapped_column(Integer)
     costo_estimado: Mapped[int] = mapped_column(Integer)
+    variante: Mapped[str] = mapped_column(String(15), default="sin_contexto", server_default="sin_contexto")
+    modo_decision: Mapped[str] = mapped_column(String(20), default="autonomo_acotado", server_default="autonomo_acotado")
+    umbral_confianza: Mapped[float] = mapped_column(Float, default=0.85, server_default="0.85")
+    version_prompt: Mapped[str] = mapped_column(String(30), default="v2.0-sin-contexto", server_default="v2.0-sin-contexto")
     resumen: Mapped[dict | None] = mapped_column(JSON)
     error: Mapped[str | None] = mapped_column(String(200))
 
@@ -158,6 +179,33 @@ class ResultadoCaso(Base):
     motivo_respaldo: Mapped[str | None] = mapped_column(String(30))
     latencia_explicacion_ms: Mapped[int | None] = mapped_column(Integer)  # t_explicado - t_recibido
     detalle: Mapped[dict | None] = mapped_column(JSON)  # DU-01: comprobación de agrupación
+    accion_propuesta: Mapped[str | None] = mapped_column(String(20))
+    decision_politica: Mapped[str | None] = mapped_column(String(12))
+    accion_final: Mapped[str | None] = mapped_column(String(30))  # siempre simulada en el laboratorio
+    veredicto_llm: Mapped[str | None] = mapped_column(String(20))
+    dictamen_historial: Mapped[str | None] = mapped_column(String(20))
+    verificacion: Mapped[str | None] = mapped_column(String(20))  # verificado | posible_alucinacion
+
+
+class Recomendacion(Base):
+    """Acción propuesta que la política no ejecutó sola: la resuelve el operador (o expira)."""
+
+    __tablename__ = "recomendaciones"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    incidente_id: Mapped[int | None] = mapped_column(ForeignKey("incidentes.id"), index=True)
+    host: Mapped[str] = mapped_column(String(15), index=True)  # una IPv4, nunca una subred
+    accion: Mapped[str] = mapped_column(String(20))  # pasar_a_cuarentena | escalar_a_drop
+    justificacion: Mapped[str | None] = mapped_column(String(300))
+    confianza: Mapped[float | None] = mapped_column(Float)
+    motivos_politica: Mapped[list] = mapped_column(JSON, default=list)
+    estado: Mapped[str] = mapped_column(String(12), default="pendiente", index=True)
+    # pendiente | aprobada | rechazada | ejecutada | expirada | fallida
+    t_creada: Mapped[datetime] = mapped_column(FechaHoraUTC, default=ahora_utc)
+    t_expira: Mapped[datetime] = mapped_column(FechaHoraUTC)
+    t_resuelta: Mapped[datetime | None] = mapped_column(FechaHoraUTC)
+    resuelta_por: Mapped[str | None] = mapped_column(String(12))  # operador | sistema
+    motivo_resolucion: Mapped[str | None] = mapped_column(String(200))
 
 
 class EjecucionPytest(Base):

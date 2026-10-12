@@ -24,6 +24,12 @@ TIPOS_C5 = frozenset(
         "config_cambiada",
         "prueba_progreso",
         "prueba_terminada",
+        # C5 (extensión, Fase 6.8)
+        "recomendacion_creada",
+        "recomendacion_resuelta",
+        "accion_ejecutada",
+        "accion_fallida",
+        "modo_decision_cambiado",
     }
 )
 TAMANO_COLA = 100

@@ -3,6 +3,7 @@
 import json
 from datetime import timedelta
 
+import mock_ryu
 import pytest
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -11,16 +12,9 @@ from app.config import get_settings
 from app.db.models import Alerta, Auditoria, Incidente
 from app.integrations.llm import RespuestaLLM
 from app.services import pipeline
+from conftest import SALIDA_LLM_V3
 
-SALIDA_VALIDA = {
-    "veredicto": "confirmado",
-    "severidad": "alta",
-    "confianza": 0.8,
-    "tecnica_mitre": "T1021.002",
-    "explicacion": "Explicación del LLM falso.",
-    "evidencias": ["M3=SMB anómalo"],
-    "recomendacion_operador": "Revisar antes de desbloquear.",
-}
+SALIDA_VALIDA = {**SALIDA_LLM_V3, "recomendacion_operador": "Revisar antes de desbloquear."}  # Fase 6.8a+b: salida v3
 
 
 class LLMFalso:
@@ -55,7 +49,10 @@ def test_apagar_el_llm_por_api_aplica_sin_reiniciar(
 
     assert _fuente(bd_temporal, _alerta(cliente, cabecera_agente, payload_c1)) == ("llm", None)
     respuesta = cliente.put("/api/config", json={"LLM_HABILITADO": False}, headers=cabecera_operador)
-    assert respuesta.json() == {"LLM_HABILITADO": False, "DEDUP_SEGUNDOS": 60}
+    assert respuesta.json() == {"LLM_HABILITADO": False, "DEDUP_SEGUNDOS": 60, "CONTEXTO_HABILITADO": False,
+                                "HISTORIAL_DIAS": 30, "CAMPANA_MINUTOS": 30,  # Fase 6.7: + contexto dinámico
+                                "MODO_DECISION": "recomendar", "UMBRAL_CONFIANZA": 0.85, "MAX_ACCIONES_POR_MIN": 3,
+                                "HOSTS_PROTEGIDOS": [], "RECOMENDACION_TTL_MIN": 60}  # Fase 6.8: + motor de políticas
 
     payload_c1["host_origen"] = "10.0.0.4"
     assert _fuente(bd_temporal, _alerta(cliente, cabecera_agente, payload_c1)) == ("reglas", "llm_deshabilitado")
@@ -101,7 +98,7 @@ def test_config_invalida_422(cliente, cabecera_operador, cuerpo):
 @pytest.mark.parametrize("cuerpo", [{"M9": 3}, {"M2": 0}, {"M2": -1}, {"M2": True}, {"M2": 2.5}, {}])
 def test_umbrales_invalidos_422(cliente, cabecera_operador, ryu_mock, cuerpo):
     assert cliente.put("/api/ryu/umbrales", json=cuerpo, headers=cabecera_operador).status_code == 422
-    assert ryu_mock.cliente.umbrales()["M2"] == 5  # Ryu no cambió
+    assert ryu_mock.cliente.umbrales()["M2"] == mock_ryu.UMBRALES_INICIALES["M2"]  # Ryu no cambió
 
 
 def test_umbrales_validos_se_aplican_y_auditan(cliente, bd_temporal, cabecera_operador, ryu_mock):
@@ -111,7 +108,7 @@ def test_umbrales_validos_se_aplican_y_auditan(cliente, bd_temporal, cabecera_op
     assert cliente.get("/api/ryu/umbrales", headers=cabecera_operador).json()["M2"] == 7
     with Session(bd_temporal) as sesion:
         auditado = sesion.scalars(select(Auditoria).where(Auditoria.evento == "umbrales_cambiados")).one()
-    assert auditado.datos == {"anterior": {"M2": 5}, "nuevo": {"M2": 7}}
+    assert auditado.datos == {"anterior": {"M2": mock_ryu.UMBRALES_INICIALES["M2"]}, "nuevo": {"M2": 7}}
 
 
 def test_cupo_del_llm(cliente, cabecera_operador):

@@ -73,12 +73,14 @@ def _mismo_ambito(ambito: AmbitoPrueba | None) -> tuple:
 
 def buscar_incidente_abierto_reciente(host: str, segundos: int, ambito: AmbitoPrueba | None = None) -> int | None:
     """Incidente sin desbloquear del host cuya ÚLTIMA alerta llegó hace ≤ segundos (ventana deslizante),
-    dentro del mismo ámbito (los reales nunca se mezclan con los de prueba ni las corridas entre sí)."""
+    dentro del mismo ámbito (los reales nunca se mezclan con los de prueba ni las corridas entre sí).
+    Nunca agrupa con un incidente sembrado: el historial sembrado no es un incidente en curso."""
     limite = datetime.now(timezone.utc) - timedelta(seconds=segundos)
     consulta = (
         select(Incidente.id)
         .join(Alerta, Alerta.incidente_id == Incidente.id)
         .where(Incidente.host_origen == host, Incidente.t_desbloqueado.is_(None), Alerta.t_recibido >= limite)
+        .where(Incidente.sembrado.is_(False))
         .where(*_mismo_ambito(ambito))
         .order_by(Incidente.id.desc())
         .limit(1)
@@ -88,8 +90,13 @@ def buscar_incidente_abierto_reciente(host: str, segundos: int, ambito: AmbitoPr
 
 
 def listar_incidentes(limite: int, offset: int, origen: str = "real") -> list[dict[str, Any]]:
-    """Incidentes del más reciente al más antiguo, con su contador de alertas. origen: real | prueba | todos."""
-    consulta = _seleccion_incidentes().order_by(Incidente.id.desc()).limit(limite).offset(offset)
+    """Incidentes del más reciente al más antiguo, con su contador de alertas. origen: real | prueba | todos.
+
+    Los sembrados nunca aparecen (ni en la tabla del panel ni en las exportaciones): solo como contexto usado."""
+    consulta = (
+        _seleccion_incidentes().where(Incidente.sembrado.is_(False))
+        .order_by(Incidente.id.desc()).limit(limite).offset(offset)
+    )
     if origen != "todos":
         consulta = consulta.where(Incidente.origen == origen)
     with SesionLocal() as sesion:
@@ -124,8 +131,13 @@ def guardar_explicacion(
     tokens_entrada: int | None,
     tokens_salida: int | None,
     latencia_ms: int | None,
+    variante: str | None = None,
+    version_prompt: str | None = None,
+    contexto_usado: dict | None = None,
+    veredicto_llm: str | None = None,
+    dictamen_historial: str | None = None,
 ) -> None:
-    """Guarda la salida C4 (claves = columnas del incidente). No toca nada del bloqueo."""
+    """Guarda la salida C4 (claves = columnas del incidente) y la variante usada. No toca nada del bloqueo."""
     with SesionLocal.begin() as sesion:
         sesion.execute(
             update(Incidente)
@@ -138,6 +150,11 @@ def guardar_explicacion(
                 tokens_entrada=tokens_entrada,
                 tokens_salida=tokens_salida,
                 latencia_llm_ms=latencia_ms,
+                variante=variante,
+                version_prompt=version_prompt,
+                contexto_usado=contexto_usado,
+                veredicto_llm=veredicto_llm,
+                dictamen_historial=dictamen_historial,
             )
         )
 

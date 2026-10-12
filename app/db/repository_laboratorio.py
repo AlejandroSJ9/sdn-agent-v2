@@ -14,7 +14,9 @@ def _a_dict(fila) -> dict[str, Any]:
 
 
 def crear_corrida(
-    casos: list[str], conjunto: str | None, usar_llm: bool, enviar_correos: bool, repeticiones: int, costo: int
+    casos: list[str], conjunto: str | None, usar_llm: bool, enviar_correos: bool, repeticiones: int, costo: int,
+    variante: str = "sin_contexto", version_prompt: str = "v2.2-sin-contexto",
+    modo_decision: str = "autonomo_acotado", umbral_confianza: float = 0.85,
 ) -> int:
     with SesionLocal.begin() as sesion:
         corrida = Corrida(
@@ -25,6 +27,10 @@ def crear_corrida(
             enviar_correos=enviar_correos,
             repeticiones=repeticiones,
             costo_estimado=costo,
+            variante=variante,
+            version_prompt=version_prompt,
+            modo_decision=modo_decision,
+            umbral_confianza=umbral_confianza,
             t_inicio=datetime.now(timezone.utc),
         )
         sesion.add(corrida)
@@ -65,7 +71,7 @@ def resultados_de(corrida_id: int) -> list[dict[str, Any]]:
 def opciones_corrida(incidente_id: int) -> dict[str, bool] | None:
     """Opciones de la corrida de un incidente de prueba; None si el incidente es real."""
     consulta = (
-        select(Corrida.usar_llm, Corrida.enviar_correos)
+        select(Corrida.usar_llm, Corrida.enviar_correos, Corrida.variante, Corrida.modo_decision, Corrida.umbral_confianza)
         .join(Incidente, Incidente.corrida_id == Corrida.id)
         .where(Incidente.id == incidente_id, Incidente.origen == "prueba")
     )

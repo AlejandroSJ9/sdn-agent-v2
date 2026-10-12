@@ -1,4 +1,4 @@
-"""Cliente de la API REST de Ryu-IA (C2 / docs/ajustes.md A3). Solo habla HTTP."""
+"""Cliente de la API REST de Ryu-IA (C2 en docs/contratos.md). Solo habla HTTP."""
 
 import json
 import time
@@ -6,6 +6,12 @@ import time
 import httpx
 
 from app.integrations._tope import TopeSuperado, ejecutar_con_tope, solicitar_hasta
+
+# Claves de umbral que expone Ryu-IA (C2). Ryu rechaza con 422 cualquier otra o un valor que no sea entero > 0.
+CLAVES_UMBRALES = ("M1", "M2", "M3_DURACION_S", "M3_BYTES", "M4", "M5", "SCORE_SOSPECHOSO", "SCORE_CRITICO")
+
+# Capacidades detectadas, por URL de Ryu. El cliente se crea en cada llamada, por eso la caché es del módulo.
+_capacidades: dict[str, dict[str, bool]] = {}
 
 
 class RyuError(Exception):
@@ -22,6 +28,10 @@ class RyuNoDisponible(RyuError):
 
 class HostNoBloqueado(RyuError):
     """Ryu respondió 404 al desbloquear: el host no estaba bloqueado."""
+
+
+class UmbralesNoValidos(ValueError):
+    """Cambio de umbrales que Ryu rechazaría (clave desconocida o valor que no es entero > 0). No se envía."""
 
 
 class ClienteRyu:
@@ -57,7 +67,22 @@ class ClienteRyu:
         return self._pedir("GET", "/ryu/estado")
 
     def bloqueados(self) -> list[dict]:
+        """Cada host: ip, dpid, desde y, solo si Ryu tiene A6, "modo" (drop_total | cuarentena)."""
         return self._pedir("GET", "/ryu/hosts/bloqueados")
+
+    def capacidades(self, refrescar: bool = False) -> dict[str, bool]:
+        """{"cuarentena": bool}: Ryu con A6 envía "modo" en cada host bloqueado.
+
+        Se detecta una vez y queda en caché (refrescar=True vuelve a consultar). Con la lista vacía no se
+        puede saber: devuelve False y NO lo guarda, para detectarlo en la próxima llamada.
+        """
+        if not refrescar and self._base_url in _capacidades:
+            return dict(_capacidades[self._base_url])
+        lista = self.bloqueados()
+        if not lista:
+            return {"cuarentena": False}
+        _capacidades[self._base_url] = {"cuarentena": all("modo" in host for host in lista)}
+        return dict(_capacidades[self._base_url])
 
     def desbloquear(self, ip: str) -> dict:
         try:
@@ -67,8 +92,22 @@ class ClienteRyu:
                 raise HostNoBloqueado(404, "host_no_bloqueado") from error
             raise
 
+    # A6 (C2): solo services/acciones.py puede llamarlas (tests/unit/test_unico_camino_desbloqueo.py).
+    def cuarentena(self, ip: str) -> dict:
+        """{"ok", "ip", "modo": "cuarentena"}. 404 = Ryu sin A6 o host no bloqueado → RyuError(404)."""
+        return self._pedir("POST", f"/ryu/hosts/{ip}/cuarentena")
+
+    def bloqueo_total(self, ip: str) -> dict:
+        """{"ok", "ip", "modo": "drop_total"}. 404 = Ryu sin A6 o host no bloqueado → RyuError(404)."""
+        return self._pedir("POST", f"/ryu/hosts/{ip}/bloqueo_total")
+
     def umbrales(self) -> dict[str, int]:
         return self._pedir("GET", "/ryu/umbrales")
 
     def actualizar_umbrales(self, cambios: dict[str, int]) -> dict[str, int]:
+        """Valida localmente con las mismas reglas que Ryu antes de enviar."""
+        desconocidas = sorted(set(cambios) - set(CLAVES_UMBRALES))
+        invalidos = sorted(k for k, v in cambios.items() if type(v) is not int or v <= 0)
+        if not cambios or desconocidas or invalidos:
+            raise UmbralesNoValidos(f"claves desconocidas: {desconocidas}; valores inválidos: {invalidos}")
         return self._pedir("PUT", "/ryu/umbrales", cambios)

@@ -137,6 +137,7 @@ def test_lectura_de_incidentes(cliente, cabecera_agente, cabecera_operador, payl
     assert detalle.pop("ultima_notificacion") is None and incidente.pop("ultima_notificacion") is None
     assert detalle.pop("metricas")["M1_nuevos_flujos_por_30s"] == 42 and incidente.pop("metricas") is None
     assert detalle.pop("umbrales_superados") == ["M1", "M2", "M3"] and incidente.pop("umbrales_superados") is None
+    assert detalle.pop("acciones") == [] and incidente.pop("acciones") is None  # Fase 6.8: solo en el detalle
     assert detalle == incidente
     assert cliente.get("/api/incidentes/999", headers=cabecera_operador).status_code == 404
     assert cliente.get("/api/incidentes").status_code == 401
@@ -149,5 +150,6 @@ def test_auditoria_integra_tras_las_alertas(cliente, cabecera_agente, cabecera_o
 
     respuesta = cliente.get("/api/auditoria/verificar", headers=cabecera_operador)
     assert respuesta.status_code == 200
-    # alerta_recibida + alerta_agrupada + explicacion_generada (Fase 2) + notificacion_omitida (Fase 3)
-    assert respuesta.json() == {"integra": True, "filas": 4, "primera_rota": None}
+    # alerta_recibida + alerta_agrupada + verificacion_informe (Fase 6.8b) + explicacion_generada (Fase 2)
+    # + notificacion_omitida (Fase 3)
+    assert respuesta.json() == {"integra": True, "filas": 5, "primera_rota": None}

@@ -60,7 +60,8 @@ def test_incidente():
     assert payload.mensaje == (
         "Veredicto: confirmado | Severidad: critica | Técnica MITRE: T1021.002\n"
         f"Explicación: {EXPLICACION_REGLAS}\n"
-        "Alertas agrupadas: 1 | Fuente de la explicación: reglas\n"
+        "Alertas agrupadas: 1 | Fuente de la explicación: reglas | Contexto: no utilizado\n"  # Fase 6.7
+        "Acción: se mantiene el bloqueo total\n"  # Fase 6.8 (C3: máximo 6 líneas)
         "Hora de detección (UTC): 2026-10-10T20:31:05Z\n"
         "Ryu-IA mantiene el host bloqueado; solo el operador puede desbloquearlo desde el panel."
     )

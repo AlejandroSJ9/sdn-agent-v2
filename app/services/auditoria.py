@@ -36,14 +36,15 @@ def _calcular_hash(hash_previo: str, evento: str, datos: Any, ts: datetime) -> s
     return hmac.new(clave, contenido.encode("utf-8"), hashlib.sha256).hexdigest()
 
 
-def registrar(evento: str, datos: dict[str, Any]) -> None:
-    """Agrega un evento al final de la cadena de auditoría."""
+def registrar(evento: str, datos: dict[str, Any]) -> str:
+    """Agrega un evento al final de la cadena de auditoría. Devuelve el hash de la fila (trazabilidad del informe)."""
     datos = json.loads(_json_canonico(datos))  # lo que se guarda es exactamente lo que se hashea
     with _candado:
         hash_previo = repository.ultimo_hash_auditoria() or HASH_INICIAL
         ts = datetime.now(timezone.utc)
         hash_ = _calcular_hash(hash_previo, evento, datos, ts)
         repository.insertar_auditoria(ts, evento, datos, hash_previo, hash_)
+    return hash_
 
 
 def verificar_cadena() -> dict[str, Any]:

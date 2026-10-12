@@ -10,9 +10,21 @@ from fastapi.testclient import TestClient
 from app.api import routes_alertas
 from app.config import get_settings
 from app.db.database import iniciar_bd
+from app.integrations import ryu
 from app.integrations.ryu import ClienteRyu
 from app.main import app
-from app.services import notificacion, operador, pipeline
+from app.services import notificacion, operador, pipeline, rechazadas
+
+# Salida v3 válida de un LLM falso (Fase 6.8a+b). Las pruebas la copian y cambian lo que necesitan.
+SALIDA_LLM_V3 = {
+    "veredicto": "confirmado", "severidad": "alta", "confianza": 0.8, "tecnica_id": "T1021.002",
+    "hipotesis_fase": "Movimiento lateral por SMB.",
+    "factores_ponderados": [{"factor": "Tráfico SMB anómalo", "peso": "alto", "porque": "M3 activo."},
+                            {"factor": "Destinos únicos", "peso": "medio", "porque": "M2 supera su umbral."}],
+    "contexto_aplicado": "sin contexto disponible", "descarte_benigno": "No hay datos que indiquen actividad legítima.",
+    "limitaciones": ["Puertos y protocolos no disponibles."], "accion_propuesta": "mantener",
+    "justificacion_accion": "Hay indicios de ataque.", "recomendacion_operador": "Revisar.",
+}
 
 TOKEN_AGENTE = "token-agente-de-prueba"
 TOKEN_OPERADOR = "token-operador-de-prueba"
@@ -25,6 +37,7 @@ def _secretos_de_prueba(monkeypatch):
     monkeypatch.setenv("AGENT_TOKEN", TOKEN_AGENTE)
     monkeypatch.setenv("OPERADOR_TOKEN", TOKEN_OPERADOR)
     monkeypatch.setenv("AUDITORIA_CLAVE", CLAVE_AUDITORIA)
+    monkeypatch.setenv("LLM_MODELO", "modelo-de-prueba")  # obligatorio al arrancar; las pruebas no dependen de .env
     get_settings.cache_clear()
     yield
     get_settings.cache_clear()
@@ -113,13 +126,18 @@ def transporte_asgi(app_asgi) -> httpx.MockTransport:
 
 @pytest.fixture(autouse=True)
 def _sin_ryu_real(monkeypatch):
-    """Ninguna prueba puede llegar al Ryu real."""
+    """Ninguna prueba puede llegar al Ryu real: sin ryu_mock, Ryu se ve como no disponible (sin red).
+
+    Fase 6.8: el pipeline LEE el modo y la capacidad A6 de Ryu en cada incidente real; con Ryu caído usa
+    "drop_total" y "sin A6". Por eso el Ryu por defecto responde como caído en vez de hacer fallar la prueba.
+    """
 
     def _prohibido(peticion):
-        pytest.fail("Una prueba intentó llamar al Ryu real")
+        raise httpx.ConnectError("Ryu real no disponible en las pruebas")
 
     cliente_prohibido = ClienteRyu("http://ryu-real.invalido", "x", transporte=httpx.MockTransport(_prohibido))
     monkeypatch.setattr(operador, "obtener_cliente_ryu", lambda: cliente_prohibido)
+    monkeypatch.setattr(ryu, "_capacidades", {})  # la caché de capacidades no pasa de una prueba a otra
 
 
 @pytest.fixture
@@ -134,6 +152,7 @@ def ryu_mock(monkeypatch):
 @pytest.fixture
 def cliente(bd_temporal):
     routes_alertas.limite_tasa.reiniciar()
+    rechazadas.reiniciar()
     with TestClient(app) as cliente:
         yield cliente
 

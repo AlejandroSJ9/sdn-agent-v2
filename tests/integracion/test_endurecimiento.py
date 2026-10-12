@@ -105,7 +105,7 @@ def test_solo_con_la_clave_se_puede_rehacer_la_cadena(bd_temporal):
 # ---- 9. Secretos obligatorios al arrancar ----
 
 
-@pytest.mark.parametrize("secreto", ["AGENT_TOKEN", "OPERADOR_TOKEN", "AUDITORIA_CLAVE"])
+@pytest.mark.parametrize("secreto", ["AGENT_TOKEN", "OPERADOR_TOKEN", "AUDITORIA_CLAVE", "LLM_MODELO"])
 @pytest.mark.parametrize("valor", ["", "   "])
 def test_sin_secretos_el_agente_no_arranca(bd_temporal, monkeypatch, secreto, valor):
     monkeypatch.setenv(secreto, valor)
@@ -131,7 +131,8 @@ def test_recuperacion_reprocesa_reales_e_interrumpe_lo_que_seguia_en_curso(bd_te
 
     resultado = recuperacion.recuperar_al_arrancar(programar=lambda funcion, *args: funcion(*args))
 
-    assert resultado == {"incidentes_reprocesados": [real], "corridas_interrumpidas": [corrida], "pytest_interrumpidas": [pytest_id]}
+    assert resultado == {"incidentes_reprocesados": [real], "corridas_interrumpidas": [corrida], "pytest_interrumpidas": [pytest_id],
+                         "recomendaciones_expiradas": []}  # Fase 6.8
     with Session(bd_temporal) as sesion:
         assert sesion.get(Incidente, real).fuente_explicacion == "reglas"
         assert sesion.get(Incidente, prueba).t_explicado is None  # los de prueba no se reprocesan

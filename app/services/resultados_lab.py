@@ -15,6 +15,7 @@ MOTIVOS_TRAS_LLAMAR = {"timeout", "error_llm", "json_invalido", "schema_invalido
 COLUMNAS_CORRIDA = [
     "caso_id", "repeticion", "conjunto", "clase", "decidible", "veredicto_esperado", "aceptables",
     "veredicto_obtenido", "acierto", "fuente", "motivo_respaldo", "latencia_explicacion_ms", "incidente_id",
+    "veredicto_llm", "dictamen_historial", "verificacion",  # Fase 6.8a+b
 ]
 COLUMNAS_INCIDENTES = [
     "id", "origen", "corrida_id", "caso_id", "repeticion", "host_origen", "veredicto", "severidad", "confianza",
@@ -32,6 +33,18 @@ def _escenarios() -> dict[str, dict]:
 def _exactitud(filas: list[dict]) -> dict[str, Any]:
     aciertos = sum(1 for f in filas if f["acierto"])
     return {"aciertos": aciertos, "total": len(filas), "exactitud": round(aciertos / len(filas), 4) if filas else None}
+
+
+def metricas_xai(filas: list[dict], casos: dict[str, dict]) -> dict[str, Any]:
+    """Fase 6.8a+b: el acierto es sobre el veredicto FINAL; esto añade lo que dijo el LLM, los dictámenes
+    y los informes con posible alucinación (sobre las filas recibidas)."""
+    llm = [{"acierto": f["veredicto_llm"] in casos[f["caso_id"]]["esperado"]["aceptables"]} for f in filas]
+    dictamenes = Counter(f["dictamen_historial"] for f in filas if f["dictamen_historial"])
+    return {
+        "exactitud_veredicto_llm": _exactitud(llm),
+        "dictamenes": {"agravante": dictamenes["agravante"], "atenuante": dictamenes["atenuante"]},
+        "posible_alucinacion": sum(1 for f in filas if f["verificacion"] == "posible_alucinacion"),
+    }
 
 
 def _latencias(valores: list[int]) -> dict[str, Any]:
@@ -99,6 +112,8 @@ def resumen_corrida(corrida_id: int) -> dict[str, Any]:
         "latencia_explicacion_ms": _latencias([f["latencia_explicacion_ms"] for f in filas if f["latencia_explicacion_ms"] is not None]),
         "estabilidad": estabilidad,
         "cupo_consumido": {"llamadas_llm": llamadas, "costo_estimado": corrida["costo_estimado"]},
+        # decidibles: misma base que la exactitud del veredicto final; alucinaciones y dictámenes: todos los casos
+        "xai": {**metricas_xai(filas, casos), "exactitud_veredicto_llm": metricas_xai(decidibles, casos)["exactitud_veredicto_llm"]},
     }
 
 

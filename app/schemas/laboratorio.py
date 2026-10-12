@@ -2,7 +2,7 @@
 
 from typing import Annotated, Literal, NamedTuple
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictFloat, StrictInt, model_validator
 
 
 class AmbitoPrueba(NamedTuple):
@@ -21,6 +21,10 @@ class CorridaEntrada(BaseModel):
     usar_llm: StrictBool = False
     repeticiones: Annotated[StrictInt, Field(ge=1, le=5)] = 1
     enviar_correos: StrictBool = False
+    variante: Literal["sin_contexto", "con_contexto"] = "sin_contexto"  # no cambia la configuración global
+    # C7 en el laboratorio: SIEMPRE simulado (asume capacidad A6) y nunca llama a Ryu
+    modo_decision: Literal["solo_explicar", "recomendar", "autonomo_acotado"] = "autonomo_acotado"
+    umbral_confianza: Annotated[StrictFloat | StrictInt, Field(ge=0.5, le=1.0)] = 0.85
 
     @model_validator(mode="after")
     def _casos_o_conjunto(self) -> "CorridaEntrada":

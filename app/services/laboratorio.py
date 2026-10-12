@@ -17,7 +17,8 @@ from typing import Any
 from app.db import repository, repository_laboratorio
 from app.schemas.alerta import AlertaEntrada
 from app.schemas.laboratorio import AmbitoPrueba
-from app.services import alertas, configuracion, eventos, presupuesto, resultados_lab
+from app.services import alertas, configuracion, eventos, presupuesto, resultados_lab, siembra
+from app.services.prompt import VERSIONES
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +48,8 @@ def _por_id() -> dict[str, dict]:
 
 
 def listar_escenarios() -> list[dict[str, Any]]:
-    claves = ("id", "conjunto", "clase", "nombre", "decidible_v2", "motivo_no_decidible", "alertas_a_enviar")
+    claves = ("id", "conjunto", "clase", "nombre", "decidible_v2", "decidible_con_contexto", "motivo_no_decidible",
+              "alertas_a_enviar")
     return [{**{k: caso[k] for k in claves}, "costo_llm": 1} for caso in cargar_escenarios()]
 
 
@@ -67,6 +69,9 @@ def iniciar_corrida(
     repeticiones: int,
     enviar_correos: bool,
     programar: Callable[..., Any],
+    variante: str = "sin_contexto",
+    modo_decision: str = "autonomo_acotado",
+    umbral_confianza: float = 0.85,
 ) -> dict[str, Any]:
     """Valida, reserva la corrida y la agenda en segundo plano con `programar`."""
     seleccion = _seleccionar(casos, conjunto)
@@ -82,7 +87,8 @@ def iniciar_corrida(
         raise CorridaEnCurso("Ya hay una corrida del laboratorio en curso.")
     try:
         corrida_id = repository_laboratorio.crear_corrida(
-            seleccion, conjunto, usar_llm, enviar_correos, repeticiones, costo
+            seleccion, conjunto, usar_llm, enviar_correos, repeticiones, costo, variante, VERSIONES[variante],
+            modo_decision, float(umbral_confianza),
         )
         programar(ejecutar_corrida, corrida_id)
     except Exception:
@@ -95,8 +101,11 @@ def _ms(desde: datetime | None, hasta: datetime | None) -> int | None:
     return int((hasta - desde).total_seconds() * 1000) if desde and hasta else None
 
 
-def _ejecutar_caso(corrida_id: int, caso: dict, repeticion: int) -> dict[str, Any]:
+def _ejecutar_caso(corrida_id: int, caso: dict, repeticion: int, variante: str = "sin_contexto") -> dict[str, Any]:
     ambito = AmbitoPrueba(corrida_id, caso["id"], repeticion)
+    con_contexto = variante == "con_contexto"
+    if con_contexto:
+        siembra.sembrar(ambito, caso)  # historial literal de la v1, antes de la alerta del caso
     explicaciones: list[int] = []
 
     def en_linea(funcion: Callable, incidente_id: int, *args, **kwargs) -> None:
@@ -126,7 +135,7 @@ def _ejecutar_caso(corrida_id: int, caso: dict, repeticion: int) -> dict[str, An
         "caso_id": caso["id"],
         "repeticion": repeticion,
         "incidente_id": incidente_id,
-        "decidible": caso["decidible_v2"],
+        "decidible": caso["decidible_v2"] or (con_contexto and caso["decidible_con_contexto"]),
         "veredicto_esperado": caso["esperado"]["veredicto"],
         "veredicto_obtenido": obtenido,
         "acierto": obtenido in caso["esperado"]["aceptables"],
@@ -134,6 +143,14 @@ def _ejecutar_caso(corrida_id: int, caso: dict, repeticion: int) -> dict[str, An
         "motivo_respaldo": incidente["motivo_respaldo"],
         "latencia_explicacion_ms": _ms(incidente["t_recibido"], incidente["t_explicado"]),
         "detalle": detalle,
+        # C7 simulado: nunca se llama a Ryu (los motivos quedan en el incidente del caso)
+        "accion_propuesta": incidente["accion_propuesta"],
+        "decision_politica": incidente["decision_politica"],
+        "accion_final": incidente["accion_final"],
+        # Fase 6.8a+b: el acierto es sobre el veredicto FINAL; además se guarda lo que dijo el LLM
+        "veredicto_llm": incidente["veredicto_llm"],
+        "dictamen_historial": incidente["dictamen_historial"],
+        "verificacion": ((incidente["informe"] or {}).get("razonamiento") or {}).get("verificacion", {}).get("resultado"),
     }
 
 
@@ -146,7 +163,9 @@ def ejecutar_corrida(corrida_id: int) -> None:
         actual = 0
         for caso_id in corrida["casos"]:
             for repeticion in range(1, corrida["repeticiones"] + 1):
-                repository_laboratorio.guardar_resultado(_ejecutar_caso(corrida_id, casos[caso_id], repeticion))
+                repository_laboratorio.guardar_resultado(
+                    _ejecutar_caso(corrida_id, casos[caso_id], repeticion, corrida["variante"])
+                )
                 actual += 1
                 eventos.emitir(
                     "prueba_progreso",

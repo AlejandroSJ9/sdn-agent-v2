@@ -19,7 +19,7 @@ def test_mensaje_del_ejemplo_c1(payload_c1):
         '{"alertas_agrupadas":1,"dpid_switch":"0x0000000000000001","host_origen":"10.0.0.3",'
         '"metricas":{"M1_nuevos_flujos_por_30s":42,"M2_destinos_unicos_por_30s":9,"M3_smb_anomalo":true,'
         '"M4_packet_in_por_min":120.0,"M5_count":7,"M5_flujos_east_west":true},'
-        '"umbrales_superados":["M1","M2","M3"]}\n'
+        '"modo_actual":"drop_total","umbrales_superados":["M1","M2","M3"]}\n'
         "</datos_red>"
     )
 
@@ -35,7 +35,8 @@ def test_mensaje_contiene_metricas_y_nada_del_payload_crudo(payload_c1):
 
     assert mensaje.count("<datos_red>") == 1 and mensaje.count("</datos_red>") == 1
     datos = _datos(mensaje)
-    assert set(datos) == {"host_origen", "dpid_switch", "metricas", "umbrales_superados", "alertas_agrupadas"}
+    assert set(datos) == {"host_origen", "dpid_switch", "metricas", "umbrales_superados", "alertas_agrupadas",
+                          "modo_actual"}  # Fase 6.8: + modo_actual (lista cerrada)
     assert set(datos["metricas"]) == {
         "M1_nuevos_flujos_por_30s",
         "M2_destinos_unicos_por_30s",

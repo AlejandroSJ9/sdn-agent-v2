@@ -6,14 +6,14 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from conftest import SALIDA_LLM_V3
 from app.config import get_settings
 from app.db.models import Incidente
 from app.integrations.llm import LLMError, RespuestaLLM
 from app.services import pipeline
 
 SALIDA_VALIDA = {
-    "veredicto": "confirmado", "severidad": "alta", "confianza": 0.8, "tecnica_mitre": "T1021.002",
-    "explicacion": "LLM falso.", "evidencias": ["M3"], "recomendacion_operador": "Revisar.",
+    **SALIDA_LLM_V3, "veredicto": "confirmado", "severidad": "alta", "confianza": 0.8,  # Fase 6.8a+b: salida v3
 }
 
 

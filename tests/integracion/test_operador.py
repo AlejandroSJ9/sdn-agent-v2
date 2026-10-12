@@ -9,7 +9,7 @@ from app.db.models import Auditoria, Incidente, Notificacion
 from app.integrations.ryu import ClienteRyu
 from app.services import operador
 
-CUERPO = {"confirmacion": "10.0.0.3", "motivo": "Falso positivo verificado con el responsable"}
+CUERPO = {"confirmacion": "10.0.0.3", "motivo": "Falso positivo verificado con el responsable", "clasificacion": "falso_positivo"}
 
 
 def _alerta(cliente, cabecera, payload) -> int:
@@ -37,7 +37,8 @@ def test_desbloqueo_exitoso(cliente, bd_temporal, cabecera_agente, cabecera_oper
         assert sesion.get(Incidente, incidente_id).t_desbloqueado is not None
         auditado = sesion.scalars(select(Auditoria).where(Auditoria.evento == "host_desbloqueado")).one()
         notificaciones = sesion.scalars(select(Notificacion).where(Notificacion.tipo == "desbloqueo")).all()
-    assert auditado.datos == {"ip": "10.0.0.3", "motivo": CUERPO["motivo"], "incidentes": [incidente_id]}
+    assert auditado.datos == {"ip": "10.0.0.3", "motivo": CUERPO["motivo"], "clasificacion": "falso_positivo",
+                              "incidentes": [incidente_id]}
     assert [(n.incidente_id, n.payload["asunto"]) for n in notificaciones] == [
         (incidente_id, "[SDN] Host 10.0.0.3 desbloqueado por el operador")
     ]
@@ -45,7 +46,7 @@ def test_desbloqueo_exitoso(cliente, bd_temporal, cabecera_agente, cabecera_oper
 
 
 def test_desbloqueo_sin_incidente_abierto_notifica_uno_general(cliente, bd_temporal, cabecera_operador, ryu_mock):
-    cuerpo = {"confirmacion": "10.0.0.5", "motivo": "Equipo de pruebas"}
+    cuerpo = {"confirmacion": "10.0.0.5", "motivo": "Equipo de pruebas", "clasificacion": "otro"}
     respuesta = cliente.post("/api/hosts/10.0.0.5/desbloquear", json=cuerpo, headers=cabecera_operador)
 
     assert respuesta.status_code == 200 and respuesta.json()["incidentes"] == []

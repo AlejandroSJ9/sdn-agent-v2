@@ -10,7 +10,7 @@ from typing import Any
 
 from app.config import get_settings
 from app.db import repository_operador
-from app.integrations.ryu import ClienteRyu, HostNoBloqueado, RyuError, RyuNoDisponible
+from app.integrations.ryu import ClienteRyu, HostNoBloqueado, RyuError, RyuNoDisponible, UmbralesNoValidos
 from app.services import auditoria, eventos, notificacion
 
 __all__ = ["ConfirmacionInvalida", "UmbralesInvalidos", "HostNoBloqueado", "RyuError", "RyuNoDisponible"]
@@ -33,7 +33,8 @@ def obtener_cliente_ryu() -> ClienteRyu:
 def estado_ryu() -> dict[str, Any]:
     """Nunca falla: si Ryu no responde, lo informa para que el panel siga funcionando."""
     try:
-        return {"disponible": True, **obtener_cliente_ryu().estado()}
+        cliente = obtener_cliente_ryu()
+        return {"disponible": True, **cliente.estado(), "capacidades": cliente.capacidades()}
     except RyuError as error:
         return {"disponible": False, "error": str(error)}
 
@@ -44,8 +45,13 @@ def bloqueados_enriquecidos() -> list[dict[str, Any]]:
     return [{**host, "incidente_id": abiertos.get(host["ip"])} for host in lista]
 
 
-def desbloquear_host(ip: str, confirmacion: str, motivo: str, programar: Callable[..., Any]) -> dict[str, Any]:
-    """Desbloquea en Ryu y, solo si Ryu lo confirma, lo registra. `programar` agenda los correos."""
+def desbloquear_host(
+    ip: str, confirmacion: str, motivo: str, programar: Callable[..., Any], clasificacion: str
+) -> dict[str, Any]:
+    """Desbloquea en Ryu y, solo si Ryu lo confirma, lo registra con la clasificación del operador (C6).
+
+    `programar` agenda los correos. La clasificación solo se guarda: no cambia nada en Ryu.
+    """
     if confirmacion != ip:
         raise ConfirmacionInvalida("La confirmación debe ser exactamente la IP del host")
     motivo = motivo.strip()
@@ -56,8 +62,10 @@ def desbloquear_host(ip: str, confirmacion: str, motivo: str, programar: Callabl
 
     ts = datetime.now(timezone.utc)
     incidentes = repository_operador.incidentes_abiertos_de(ip)
-    repository_operador.marcar_desbloqueados(incidentes, ts)
-    auditoria.registrar("host_desbloqueado", {"ip": ip, "motivo": motivo, "incidentes": incidentes})
+    repository_operador.marcar_desbloqueados(incidentes, ts, clasificacion, motivo)
+    auditoria.registrar(
+        "host_desbloqueado", {"ip": ip, "motivo": motivo, "clasificacion": clasificacion, "incidentes": incidentes}
+    )
     for incidente_id in incidentes:
         programar(notificacion.notificar, incidente_id, "desbloqueo", motivo=motivo)
     if not incidentes:
@@ -78,7 +86,10 @@ def actualizar_umbrales(cambios: dict[str, Any]) -> dict[str, int]:
     invalidos = sorted(k for k, v in cambios.items() if type(v) is not int or v <= 0)
     if not cambios or desconocidas or invalidos:
         raise UmbralesInvalidos(f"claves desconocidas: {desconocidas}; valores inválidos: {invalidos}")
-    nuevos = cliente.actualizar_umbrales(cambios)
+    try:
+        nuevos = cliente.actualizar_umbrales(cambios)
+    except UmbralesNoValidos as error:  # clave que Ryu expone pero C2 no contempla
+        raise UmbralesInvalidos(str(error)) from error
     datos = {"anterior": {k: actuales[k] for k in cambios}, "nuevo": {k: nuevos.get(k) for k in cambios}}
     auditoria.registrar("umbrales_cambiados", datos)
     eventos.emitir("config_cambiada", {"tipo": "umbrales", **datos})

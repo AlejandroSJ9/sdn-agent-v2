@@ -7,7 +7,8 @@ import mock_ryu
 import pytest
 from conftest import TOKEN_AGENTE, transporte_asgi
 
-from app.integrations.ryu import ClienteRyu, HostNoBloqueado, RyuError, RyuNoDisponible
+from app.integrations import ryu as ryu_modulo
+from app.integrations.ryu import ClienteRyu, HostNoBloqueado, RyuError, RyuNoDisponible, UmbralesNoValidos
 
 
 @pytest.fixture
@@ -80,3 +81,50 @@ def test_otro_codigo_es_ryu_error_con_el_codigo():
     with pytest.raises(RyuError) as error:
         _cliente_con(lambda p: httpx.Response(500)).desbloquear("10.0.0.3")
     assert error.value.codigo == 500 and not isinstance(error.value, HostNoBloqueado)
+
+
+# ---- Fase 6.6: capacidades y validación local de umbrales ----
+
+def _cliente_mock(url: str, cuarentena: bool) -> tuple[ClienteRyu, list[str]]:
+    """Cliente contra el mock que además anota las rutas pedidas."""
+    interno = transporte_asgi(mock_ryu.crear_app(TOKEN_AGENTE, cuarentena=cuarentena))
+    rutas: list[str] = []
+
+    def manejar(peticion: httpx.Request) -> httpx.Response:
+        rutas.append(f"{peticion.method} {peticion.url.path}")
+        return interno.handle_request(peticion)
+
+    return ClienteRyu(url, TOKEN_AGENTE, transporte=httpx.MockTransport(manejar)), rutas
+
+
+@pytest.mark.parametrize("cuarentena", [True, False])
+def test_capacidades_detecta_a6_una_vez_y_la_cachea(cuarentena):
+    cliente, rutas = _cliente_mock("http://ryu-a.test", cuarentena)
+    assert cliente.capacidades() == {"cuarentena": cuarentena}
+    assert cliente.capacidades() == {"cuarentena": cuarentena}
+    assert rutas == ["GET /ryu/hosts/bloqueados"]  # la segunda vez sale de la caché
+    cliente.capacidades(refrescar=True)
+    assert len(rutas) == 2
+
+
+def test_capacidades_con_lista_vacia_es_false_sin_cache():
+    cliente, rutas = _cliente_mock("http://ryu-b.test", cuarentena=True)
+    cliente.desbloquear("10.0.0.3")
+    cliente.desbloquear("10.0.0.5")
+    assert cliente.capacidades() == {"cuarentena": False}
+    assert "http://ryu-b.test" not in ryu_modulo._capacidades
+    cliente.capacidades()
+    assert rutas.count("GET /ryu/hosts/bloqueados") == 2
+
+
+def test_bloqueados_lee_modo_si_viene():
+    cliente, _ = _cliente_mock("http://ryu-c.test", cuarentena=True)
+    assert {host["modo"] for host in cliente.bloqueados()} == {"drop_total"}
+
+
+@pytest.mark.parametrize("cambios", [{}, {"CRITICAL_THRESHOLD": 2}, {"M2": 0}, {"M2": 2.5}, {"M2": True}])
+def test_umbrales_invalidos_no_se_envian(cambios):
+    cliente, rutas = _cliente_mock("http://ryu-d.test", cuarentena=False)
+    with pytest.raises(UmbralesNoValidos):
+        cliente.actualizar_umbrales(cambios)
+    assert rutas == []

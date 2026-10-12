@@ -113,8 +113,8 @@ def test_auditoria_integra_con_notificaciones(cliente, cabecera_agente, cabecera
     cliente.post("/api/notificaciones/prueba", headers=cabecera_operador)
 
     verificacion = cliente.get("/api/auditoria/verificar", headers=cabecera_operador).json()
-    # alerta_recibida + explicacion_generada + notificacion_enviada + notificacion_fallida
-    assert verificacion == {"integra": True, "filas": 4, "primera_rota": None}
+    # alerta_recibida + verificacion_informe (Fase 6.8b) + explicacion_generada + notificacion_enviada + notificacion_fallida
+    assert verificacion == {"integra": True, "filas": 5, "primera_rota": None}
 
 
 def test_usa_appscript_timeout_configurado(cliente, cabecera_operador, apps_script, monkeypatch):

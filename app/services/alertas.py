@@ -5,7 +5,7 @@ from collections.abc import Callable
 from datetime import datetime, timezone
 from typing import Any
 
-from app.db import repository, repository_operador
+from app.db import repository, repository_acciones, repository_operador
 from app.schemas.alerta import AlertaEntrada
 from app.schemas.laboratorio import AmbitoPrueba
 from app.schemas.notificacion import IncidenteDetalle
@@ -96,6 +96,7 @@ def obtener_incidente(incidente_id: int) -> IncidenteDetalle | None:
             "ultima_notificacion": repository.ultima_notificacion(incidente_id),
             "metricas": origen.metricas if origen else None,
             "umbrales_superados": origen.umbrales_superados if origen else None,
+            "acciones": repository_acciones.acciones_de_incidente(incidente_id),
         }
     )
 

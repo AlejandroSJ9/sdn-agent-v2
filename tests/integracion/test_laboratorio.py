@@ -8,14 +8,14 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from conftest import SALIDA_LLM_V3
 from app.config import get_settings
 from app.db.models import Auditoria, Incidente, Notificacion
 from app.integrations.llm import RespuestaLLM
 from app.services import laboratorio, pipeline, resultados_lab
 
 SALIDA_LLM = {
-    "veredicto": "confirmado", "severidad": "alta", "confianza": 0.8, "tecnica_mitre": "T1021.002",
-    "explicacion": "LLM falso.", "evidencias": ["M3"], "recomendacion_operador": "Revisar.",
+    **SALIDA_LLM_V3, "veredicto": "confirmado", "severidad": "alta", "confianza": 0.8,  # Fase 6.8a+b: salida v3
 }
 
 
@@ -207,7 +207,7 @@ def test_desbloquear_una_ip_real_no_toca_los_incidentes_de_prueba(cliente, bd_te
 
     bloqueados = cliente.get("/api/ryu/bloqueados", headers=cabecera_operador).json()
     assert {h["ip"]: h["incidente_id"] for h in bloqueados}["10.0.10.3"] is None
-    cuerpo = {"confirmacion": "10.0.10.3", "motivo": "Prueba de aislamiento"}
+    cuerpo = {"confirmacion": "10.0.10.3", "motivo": "Prueba de aislamiento", "clasificacion": "otro"}
     respuesta = cliente.post("/api/hosts/10.0.10.3/desbloquear", json=cuerpo, headers=cabecera_operador)
     assert respuesta.status_code == 200 and respuesta.json()["incidentes"] == []
     with Session(bd_temporal) as sesion:

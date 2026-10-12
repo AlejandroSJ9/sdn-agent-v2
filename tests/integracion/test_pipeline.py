@@ -11,16 +11,10 @@ from app.config import get_settings
 from app.db.models import Incidente, UsoLlm
 from app.integrations.llm import ClienteOpenRouter, LLMError, RespuestaLLM
 from app.services import pipeline, presupuesto
+from conftest import SALIDA_LLM_V3
 
-SALIDA_VALIDA = {
-    "veredicto": "falso_positivo",
-    "severidad": "media",
-    "confianza": 0.7,
-    "tecnica_mitre": "T1046",
-    "explicacion": "Explicación del LLM falso.",
-    "evidencias": ["M2=9 destinos únicos en 30 s"],
-    "recomendacion_operador": "Revisar antes de desbloquear.",
-}
+SALIDA_VALIDA = {**SALIDA_LLM_V3, "veredicto": "falso_positivo", "severidad": "media", "confianza": 0.7,
+                 "tecnica_id": "T1046", "recomendacion_operador": "Revisar antes de desbloquear."}  # Fase 6.8a+b: salida v3
 
 
 class LLMFalso:
@@ -92,7 +86,7 @@ def test_fallos_del_llm_usan_reglas(cliente, bd_temporal, cabecera_agente, paylo
     assert falso.llamadas == 1
     assert (incidente.fuente_explicacion, incidente.motivo_respaldo) == ("reglas", motivo)
     assert incidente.veredicto == "confirmado"  # 3 umbrales en el ejemplo C1
-    assert incidente.explicacion.startswith("Explicación generada por reglas")
+    assert incidente.informe["mitre"]["hipotesis_fase"].startswith("Reglas (sin LLM)")  # Fase 6.8b: informe
 
 
 def test_cupo_agotado_usa_reglas_sin_llamar_al_llm(cliente, bd_temporal, cabecera_agente, payload_c1, usar_llm, monkeypatch):
@@ -137,8 +131,9 @@ def test_auditoria_integra_tras_el_pipeline(cliente, cabecera_agente, cabecera_o
     _alerta(cliente, cabecera_agente, payload_c1)
 
     verificacion = cliente.get("/api/auditoria/verificar", headers=cabecera_operador).json()
-    # 2 × (alerta_recibida + explicacion_generada + notificacion_omitida)
-    assert verificacion == {"integra": True, "filas": 6, "primera_rota": None}
+    # 2 × (alerta_recibida + verificacion_informe + explicacion_generada + notificacion_omitida)
+    # (Fase 6.8b: el verificador se audita; la salida v3 trae accion_propuesta, así que no hay corrección)
+    assert verificacion == {"integra": True, "filas": 8, "primera_rota": None}
 
 
 def test_cliente_openrouter_corta_en_el_tope_total_con_respuesta_lenta_por_partes():

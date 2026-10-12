@@ -24,7 +24,7 @@ def test_auditoria_reciente_orden_y_limite(cliente, cabecera_agente, cabecera_op
 
     filas = cliente.get("/api/auditoria", headers=cabecera_operador).json()
     ids = [f["id"] for f in filas]
-    assert ids == sorted(ids, reverse=True) and len(filas) == 6  # 2 × (recibida + explicación + omitida)
+    assert ids == sorted(ids, reverse=True) and len(filas) == 8  # 2 × (recibida + verificación + explicación + omitida)
     assert set(filas[0]) == {"id", "ts", "evento", "datos"}
     assert filas[-1]["evento"] == "alerta_recibida" and filas[-1]["datos"]["host_origen"] == "10.0.0.3"
     assert len(cliente.get("/api/auditoria?limite=2", headers=cabecera_operador).json()) == 2

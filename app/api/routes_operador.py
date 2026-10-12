@@ -36,7 +36,9 @@ def bloqueados() -> list[dict]:
 @router.post("/hosts/{ip}/desbloquear")
 def desbloquear_host(ip: Annotated[IPv4, Path()], entrada: DesbloqueoEntrada, tareas: BackgroundTasks) -> dict:
     try:
-        return operador.desbloquear_host(ip, entrada.confirmacion, entrada.motivo, tareas.add_task)
+        return operador.desbloquear_host(
+            ip, entrada.confirmacion, entrada.motivo, tareas.add_task, clasificacion=entrada.clasificacion
+        )
     except operador.ConfirmacionInvalida as error:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(error)) from error
     except operador.RyuError as error:
