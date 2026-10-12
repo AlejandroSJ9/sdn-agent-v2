@@ -50,3 +50,47 @@ def test_el_detector_encuentra_un_recurso_externo():
     assert EXTERNO.search("<link href=//cdn.ejemplo.com/x.css>")
     assert not EXTERNO.search('<script type="module" src="/static/main.js"></script>')
 
+
+# ---- Imports entre módulos: cada nombre importado debe existir como export real del archivo destino ----
+IMPORT_NOMBRADO = re.compile(r'^\s*import\s*\{([^}]*)\}\s*from\s*["\'](\./[^"\']+)["\']', re.MULTILINE)
+IMPORT_ESPACIO = re.compile(r'^\s*import\s*\*\s*as\s+\w+\s+from\s*["\'](\./[^"\']+)["\']', re.MULTILINE)
+EXPORT_DECLARADO = re.compile(r'^\s*export\s+(?:async\s+)?(?:function\*?|const|let|var|class)\s+([A-Za-z_$][\w$]*)', re.MULTILINE)
+EXPORT_LISTA = re.compile(r'^\s*export\s*\{([^}]*)\}', re.MULTILINE)
+
+
+def _exportados(archivo: Path) -> set[str]:
+    texto = archivo.read_text(encoding="utf-8")
+    nombres = set(EXPORT_DECLARADO.findall(texto))
+    for lista in EXPORT_LISTA.findall(texto):
+        nombres |= {n.split(" as ")[-1].strip() for n in lista.split(",") if n.strip()}
+    return nombres
+
+
+def _importados(texto: str) -> list[tuple[str, str]]:
+    """(nombre exportado que se pide, módulo) de cada `import { a, b as c } from "./x.js"`."""
+    return [(n.split(" as ")[0].strip(), modulo)
+            for lista, modulo in IMPORT_NOMBRADO.findall(texto) for n in lista.split(",") if n.strip()]
+
+
+@pytest.mark.parametrize("archivo", sorted(MODULOS))
+def test_cada_import_existe_como_export(archivo):
+    texto = (WEB / archivo).read_text(encoding="utf-8")
+    for modulo in IMPORT_ESPACIO.findall(texto):
+        assert (WEB / modulo).is_file(), f"{archivo} importa {modulo}, que no existe"
+    for nombre, modulo in _importados(texto):
+        assert (WEB / modulo).is_file(), f"{archivo} importa {modulo}, que no existe"
+        assert nombre in _exportados(WEB / modulo), f"{archivo}: {modulo} no exporta {nombre!r}"
+
+
+def test_el_detector_de_imports_encuentra_un_export_faltante(tmp_path):
+    (tmp_path / "a.js").write_text("export function uno() {}\nexport const dos = 2;\nexport { tres as cuatro };\n", encoding="utf-8")
+    assert _exportados(tmp_path / "a.js") == {"uno", "dos", "cuatro"}
+    pedidos = _importados('import { uno, cinco as c } from "./a.js";\nimport {\n  dos,\n} from "./a.js";\n')
+    assert pedidos == [("uno", "./a.js"), ("cinco", "./a.js"), ("dos", "./a.js")]
+    assert "cinco" not in _exportados(tmp_path / "a.js")
+
+
+def test_index_carga_un_modulo_que_existe():
+    html = (WEB / "index.html").read_text(encoding="utf-8")
+    for ruta in re.findall(r'<script[^>]*src="/static/([^"]+)"', html):
+        assert (WEB / ruta).is_file(), ruta
