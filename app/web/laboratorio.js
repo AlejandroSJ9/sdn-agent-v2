@@ -1,4 +1,4 @@
-// Laboratorio: escenarios, corridas (con o sin LLM, repeticiones, correos) y resultados por caso.
+// Laboratorio: escenarios, corridas (con o sin LLM, variante, repeticiones, correos) y resultados por caso.
 
 import { api } from "./api.js";
 import { $, chip, duracion, el, mensaje, vaciar } from "./dom.js";
@@ -43,7 +43,10 @@ async function ejecutar(cuerpo, cantidad) {
   try {
     const r = await api("/api/laboratorio/corridas", {
       metodo: "POST",
-      cuerpo: { ...cuerpo, usar_llm: usarLlm, repeticiones: repeticiones(), enviar_correos: correos },
+      cuerpo: {
+        ...cuerpo, usar_llm: usarLlm, repeticiones: repeticiones(), enviar_correos: correos, variante: $("lab-variante").value,
+        modo_decision: $("lab-modo").value, umbral_confianza: Number($("lab-umbral").value),
+      },
     });
     corridaMostrada = r.corrida_id;
     botones(false);
@@ -65,7 +68,7 @@ async function cargarEscenarios() {
     el(
       "tr",
       {},
-      el("td", {}, e.id),
+      el("td", { class: "mono" }, e.id),
       el("td", {}, e.nombre),
       el("td", {}, chip(e.clase)),
       el("td", {}, e.conjunto),
@@ -92,6 +95,10 @@ function resumenCorrida(r) {
     `Latencia de explicación: media ${duracion(lat.media === null ? null : Math.round(lat.media))} · mediana ${duracion(lat.mediana)} · p95 ${duracion(lat.p95)}`,
     `No decidibles (aparte): ${r.no_decidibles.length}${agrupacion.length ? ` · agrupación ${agrupacion.join(", ")}` : ""}`,
   ];
+  if (r.xai) {
+    const d = r.xai.dictamenes;
+    lineas.push(`Veredicto del LLM (antes del dictamen): ${textoExactitud(r.xai.exactitud_veredicto_llm)} · dictámenes: ${d.agravante} agravante, ${d.atenuante} atenuante · informes con posible alucinación: ${r.xai.posible_alucinacion}`);
+  }
   if (r.estabilidad) {
     const estables = Object.entries(r.estabilidad).map(([caso, s]) => `${caso} ${s.coinciden}/${s.de}`);
     lineas.push(`Estabilidad (veredicto más común): ${estables.join(" · ")}`);
@@ -108,23 +115,26 @@ export async function mostrarCorrida(id) {
     return;
   }
   corridaMostrada = id;
-  const opciones = `${c.usar_llm ? "con LLM" : "sin LLM"} · ${c.repeticiones} rep. · correos ${c.enviar_correos ? "sí" : "no"}`;
+  const opciones = `${c.usar_llm ? "con LLM" : "sin LLM"} · ${c.variante.replace("_", " ")} · ${c.modo_decision.replace("_", " ")} (umbral ${c.umbral_confianza}, simulado) · ${c.repeticiones} rep. · correos ${c.enviar_correos ? "sí" : "no"}`;
   vaciar($("lab-corrida"), `#${c.id} · ${c.estado} · ${opciones}`);
   vaciar($("lab-resumen"), c.resumen ? resumenCorrida(c.resumen) : el("p", { class: "mensaje" }, c.error ?? "Sin resumen todavía."));
   const filas = c.resultados.map((r) =>
     el(
       "tr",
       {},
-      el("td", {}, r.caso_id, r.repeticion > 1 || c.repeticiones > 1 ? ` #${r.repeticion}` : ""),
+      el("td", { class: "mono" }, r.caso_id, r.repeticion > 1 || c.repeticiones > 1 ? ` #${r.repeticion}` : ""),
       el("td", {}, r.veredicto_esperado),
       el("td", {}, r.veredicto_obtenido ?? "—"),
-      el("td", { title: r.decidible ? "" : "No decidible: no cuenta en la exactitud" }, `${r.acierto ? "✓" : "✗"}${r.decidible ? "" : " *"}`),
+      el("td", { class: r.acierto ? "texto-ok" : "texto-mal", title: r.decidible ? "" : "No decidible: no cuenta en la exactitud" }, `${r.acierto ? "✓" : "✗"}${r.decidible ? "" : " *"}`),
       el("td", {}, r.fuente === "llm" ? chip("LLM", "llm") : chip(r.motivo_respaldo ?? r.fuente ?? "—")),
-      el("td", {}, duracion(r.latencia_explicacion_ms)),
-      el("td", {}, r.incidente_id ? el("a", { href: `#/incidentes/${r.incidente_id}` }, `#${r.incidente_id}`) : "—"),
+      el("td", { class: "mono", title: r.decision_politica ? `propuesta: ${r.accion_propuesta} · política: ${r.decision_politica}` : "" }, r.accion_final ?? "—"),
+      el("td", { class: "mono", title: r.dictamen_historial ? `dictamen ${r.dictamen_historial}` : "" },
+        `${r.veredicto_llm ?? "—"}${r.dictamen_historial ? ` → ${r.dictamen_historial}` : ""}${r.verificacion === "posible_alucinacion" ? " ⚠" : ""}`),
+      el("td", { class: "mono" }, duracion(r.latencia_explicacion_ms)),
+      el("td", { class: "mono" }, r.incidente_id ? el("a", { href: `#/incidentes/${r.incidente_id}` }, `#${r.incidente_id}`) : "—"),
     ),
   );
-  const titulos = ["Caso", "Esperado", "Obtenido", "Acierto", "Fuente", "Latencia", "Incidente"];
+  const titulos = ["Caso", "Esperado", "Obtenido", "Acierto", "Fuente", "Acción final", "LLM / dictamen", "Latencia", "Incidente"];
   vaciar(
     $("lab-resultados"),
     el("table", {}, el("thead", {}, el("tr", {}, titulos.map((t) => el("th", {}, t)))), el("tbody", {}, filas)),

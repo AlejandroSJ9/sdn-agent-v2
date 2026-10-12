@@ -3,6 +3,9 @@
 import { api, ErrorApi, token } from "./api.js";
 import { iniciarAuditoria, refrescarAuditoria, verificarCadena } from "./auditoria.js";
 import { iniciarBloqueados, refrescarBloqueados } from "./bloqueados.js";
+import { iniciarComparar, refrescarCorridasComparables } from "./comparar.js";
+import { iniciarPolitica, refrescarPolitica } from "./politica.js";
+import { iniciarRecomendaciones, refrescarRecomendaciones } from "./recomendaciones.js";
 import { $, agrupar, mensaje } from "./dom.js";
 import { iniciarEstado, marcarConexion, refrescarEstado, refrescarResumen } from "./estado.js";
 import { detalleAbierto, iniciarIncidentes, mostrarDetalle, ocultarDetalle, refrescarIncidentes } from "./incidentes.js";
@@ -22,11 +25,30 @@ const refrescar = {
   auditoria: agrupar(refrescarAuditoria),
   estado: agrupar(refrescarEstado),
   umbrales: agrupar(refrescarUmbrales),
+  politica: agrupar(refrescarPolitica),
+  recomendaciones: agrupar(refrescarRecomendaciones),
 };
 
+const VISTAS = ["resumen", "incidentes", "bloqueados", "recomendaciones", "laboratorio", "auditoria", "configuracion"];
+
+function cerrarMenu() {
+  document.body.classList.remove("menu-abierto");
+  $("btn-menu").setAttribute("aria-expanded", "false");
+}
+
+// Rutas: #/resumen (por defecto), #/incidentes, #/bloqueados, #/laboratorio, #/auditoria, #/configuracion.
+// #/incidentes/<id> abre la vista Incidentes con el detalle (el enlace del correo depende de ella).
 function enrutar() {
-  const coincidencia = location.hash.match(/^#\/incidentes\/(\d+)$/);
-  if (coincidencia) mostrarDetalle(Number(coincidencia[1]));
+  const detalle = location.hash.match(/^#\/incidentes\/(\d+)$/);
+  const pedida = detalle ? "incidentes" : (location.hash.match(/^#\/([a-z]+)$/) || [])[1];
+  const vista = VISTAS.includes(pedida) ? pedida : "resumen";
+  document.querySelectorAll("[data-vista]").forEach((seccion) => { seccion.hidden = seccion.dataset.vista !== vista; });
+  document.querySelectorAll("[data-nav]").forEach((enlace) => {
+    if (enlace.dataset.nav === vista) enlace.setAttribute("aria-current", "page");
+    else enlace.removeAttribute("aria-current");
+  });
+  cerrarMenu();
+  if (detalle) mostrarDetalle(Number(detalle[1]));
   else ocultarDetalle();
 }
 
@@ -39,7 +61,10 @@ function alEventoDePrueba(evento) {
     return !esPytest;
   }
   if (esPytest) pruebas.alTerminar(datos);
-  else laboratorio.alTerminar(datos);
+  else {
+    laboratorio.alTerminar(datos);
+    refrescarCorridasComparables();
+  }
   return true;
 }
 
@@ -67,9 +92,19 @@ function alEvento(evento) {
       (datos.incidentes || []).forEach((i) => { if (i === incidenteDelFlujo()) seguirIncidente(i); });
       break;
     case "config_cambiada":
+    case "modo_decision_cambiado":
       refrescar.estado();
       refrescar.umbrales();
+      refrescar.politica();
       return;
+    case "recomendacion_creada":
+    case "recomendacion_resuelta":
+      refrescar.recomendaciones();
+      break;
+    case "accion_ejecutada":
+    case "accion_fallida":
+      if (!datos.origen_incidente) refrescar.bloqueados();
+      break;
     default:
       return;
   }
@@ -89,6 +124,9 @@ async function arrancarPanel() {
     iniciarAuditoria();
     laboratorio.iniciarLaboratorio();
     pruebas.iniciarPruebas();
+    iniciarComparar();
+    iniciarPolitica();
+    iniciarRecomendaciones();
     window.addEventListener("hashchange", enrutar);
     iniciado = true;
   }
@@ -130,6 +168,10 @@ $("form-acceso").addEventListener("submit", async (evento) => {
 
 window.addEventListener("token-requerido", () => mostrarAcceso("El token no es válido o expiró. Ingrésalo de nuevo."));
 $("btn-salir").addEventListener("click", () => { token.borrar(); mostrarAcceso(); });
+$("btn-menu").addEventListener("click", () => {
+  const abierto = document.body.classList.toggle("menu-abierto");
+  $("btn-menu").setAttribute("aria-expanded", String(abierto));
+});
 
 if (token.leer()) arrancarPanel();
 else mostrarAcceso();

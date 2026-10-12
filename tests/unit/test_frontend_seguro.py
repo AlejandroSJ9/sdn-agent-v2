@@ -8,7 +8,10 @@ import pytest
 WEB = Path(__file__).resolve().parents[2] / "app" / "web"
 PROHIBIDOS_JS = ("innerHTML", "outerHTML", "insertAdjacentHTML", "eval(", "document.write")
 MODULOS = {"api.js", "ws.js", "estado.js", "bloqueados.js", "incidentes.js", "umbrales.js", "timeline.js",
-           "auditoria.js", "main.js", "dom.js", "laboratorio.js", "pruebas.js"}  # Fase 6: + laboratorio y pruebas
+           "auditoria.js", "main.js", "dom.js", "laboratorio.js", "pruebas.js",  # Fase 6: + laboratorio y pruebas
+           "contexto.js", "comparar.js",  # Fase 6.7: contexto usado y comparar corridas
+           "politica.js", "recomendaciones.js",  # Fase 6.8: decisión acotada
+           "informe.js"}  # Fase 6.8b: informe auditable
 EXTERNO = re.compile(r"""(?:src|href|action)\s*=\s*["']?\s*(?:https?:)?//""", re.IGNORECASE)
 
 
@@ -45,3 +48,4 @@ def test_el_detector_encuentra_un_recurso_externo():
     assert EXTERNO.search('<script src="https://cdn.ejemplo.com/x.js"></script>')
     assert EXTERNO.search("<link href=//cdn.ejemplo.com/x.css>")
     assert not EXTERNO.search('<script type="module" src="/static/main.js"></script>')
+

@@ -3,150 +3,250 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Panel 360 SDN</title>
+  <title>SDN-Agent · SOC</title>
   <link rel="stylesheet" href="/static/styles.css">
+  <link rel="stylesheet" href="/static/componentes.css">
 </head>
 <body>
   <!-- Acceso: el token de operador se guarda solo en sessionStorage -->
   <div id="acceso" class="velo" hidden>
-    <form id="form-acceso" class="tarjeta dialogo">
-      <h2>Panel 360 · SDN-Agent</h2>
+    <form id="form-acceso" class="dialogo" aria-labelledby="titulo-acceso">
+      <h2 id="titulo-acceso">SDN-Agent · SOC</h2>
+      <p class="ayuda">Acceso del operador</p>
       <label for="campo-token">Token de operador</label>
       <input id="campo-token" type="password" autocomplete="off" required>
       <p id="error-acceso" class="mensaje error" hidden></p>
-      <button type="submit" class="primario">Entrar</button>
+      <div class="acciones"><button type="submit" class="primario">Entrar</button></div>
     </form>
   </div>
 
-  <header class="cabecera">
-    <div class="fila">
-      <h1>SDN-Agent · Panel 360</h1>
-      <span id="ind-agente" class="indicador">Agente</span>
-      <span id="ind-ryu" class="indicador">Ryu</span>
-      <span id="ind-vivo" class="indicador">En vivo</span>
+  <header class="barra-superior">
+    <button id="btn-menu" class="boton-menu discreto" aria-controls="navegacion" aria-expanded="false">☰ Menú</button>
+    <h1 class="marca">SDN-Agent · SOC</h1>
+    <div class="indicadores">
+      <span id="ind-agente" class="chip-estado">Agente</span>
+      <span id="ind-ryu" class="chip-estado">Ryu</span>
+      <span id="ind-vivo" class="chip-estado">En vivo</span>
+      <span id="ind-llm" class="chip-estado">LLM</span>
+      <label id="ind-modo" class="chip-estado neutro">Decisión <select id="sel-modo" aria-label="Modo de decisión"></select></label>
+      <span id="ind-cupo" class="chip-estado neutro">Cupo <span id="cupo-texto" class="mono">—</span></span>
+      <button id="ind-rechazadas" type="button" class="chip-estado neutro" aria-controls="detalle-rechazadas" aria-expanded="false">Alertas rechazadas: <span id="rechazadas-texto" class="mono">—</span></button>
       <button id="btn-salir" class="discreto">Salir</button>
     </div>
-    <div class="fila controles">
-      <span>Cupo LLM <strong id="cupo-texto">—</strong></span>
-      <span class="barra"><span id="cupo-barra"></span></span>
-      <button id="btn-llm" class="interruptor">LLM —</button>
-      <label>DEDUP <input id="campo-dedup" type="number" min="10" max="3600"> s</label>
-      <button id="btn-dedup">Guardar</button>
-      <span id="msg-config" class="mensaje"></span>
-    </div>
-    <div id="avisos"></div>
   </header>
 
-  <main>
-    <section class="tarjetas">
-      <div class="tarjeta numero"><span>Incidentes abiertos</span><strong id="res-abiertos">—</strong></div>
-      <div class="tarjeta numero"><span>Incidentes hoy</span><strong id="res-hoy">—</strong></div>
-      <div class="tarjeta numero"><span>Correos fallidos hoy</span><strong id="res-fallidas">—</strong></div>
-      <div class="tarjeta numero"><span>Último incidente</span><strong id="res-ultimo">—</strong></div>
+  <nav id="navegacion" class="barra-lateral" aria-label="Secciones del panel">
+    <a href="#/resumen" data-nav="resumen">Resumen</a>
+    <a href="#/incidentes" data-nav="incidentes">Incidentes</a>
+    <a href="#/bloqueados" data-nav="bloqueados">Hosts bloqueados</a>
+    <a href="#/recomendaciones" data-nav="recomendaciones">Recomendaciones <span id="contador-recomendaciones" class="mono"></span></a>
+    <a href="#/laboratorio" data-nav="laboratorio">Laboratorio</a>
+    <a href="#/auditoria" data-nav="auditoria">Auditoría</a>
+    <a href="#/configuracion" data-nav="configuracion">Configuración</a>
+  </nav>
+
+  <main class="contenido">
+    <div id="avisos" class="avisos" role="status"></div>
+    <div id="detalle-rechazadas" class="aviso-franja" hidden></div>
+
+    <!-- Resumen -->
+    <section data-vista="resumen" class="vista vista-resumen">
+      <div class="resumen-principal">
+        <div class="kpis">
+          <div class="kpi"><strong id="res-abiertos" class="mono">—</strong><span>Incidentes abiertos</span></div>
+          <div class="kpi"><strong id="res-hoy" class="mono">—</strong><span>Incidentes hoy</span></div>
+          <div class="kpi"><strong id="res-bloqueados" class="mono">—</strong><span>Hosts bloqueados</span></div>
+          <div class="kpi"><strong id="res-fallidas" class="mono">—</strong><span>Notificaciones fallidas hoy</span></div>
+          <div class="kpi">
+            <strong id="res-cupo" class="mono">—</strong><span>Cupo LLM usado</span>
+            <span class="barra"><span id="cupo-barra"></span></span>
+          </div>
+        </div>
+        <section class="panel">
+          <header class="panel-cabecera">
+            <h2>Flujo del último incidente</h2>
+            <span id="flujo-titulo" class="mono secundario"></span>
+            <span class="empuje">Último incidente: <span id="res-ultimo" class="mono">—</span></span>
+          </header>
+          <div id="flujo" class="flujo"></div>
+        </section>
+      </div>
+      <aside class="panel en-vivo" aria-label="Línea de tiempo en vivo">
+        <header class="panel-cabecera"><h2>Línea de tiempo en vivo</h2></header>
+        <ol id="linea-tiempo" class="lista-eventos"></ol>
+        <pre id="evento-json" class="json" hidden></pre>
+      </aside>
     </section>
 
-    <section class="tarjeta">
-      <h2>Flujo del último incidente <small id="flujo-titulo"></small></h2>
-      <div id="flujo" class="flujo"></div>
+    <!-- Incidentes -->
+    <section data-vista="incidentes" class="vista" hidden>
+      <section class="panel">
+        <header class="panel-cabecera">
+          <h2>Incidentes</h2>
+          <select id="filtro-origen" title="Origen de los incidentes" aria-label="Origen de los incidentes">
+            <option value="real" selected>Reales</option>
+            <option value="prueba">De prueba</option>
+            <option value="todos">Todos</option>
+          </select>
+          <span class="paginacion empuje">
+            <button id="pag-anterior" class="discreto" aria-label="Página anterior">◀</button>
+            <span id="pag-numero" class="mono">1</span>
+            <button id="pag-siguiente" class="discreto" aria-label="Página siguiente">▶</button>
+          </span>
+        </header>
+        <div id="incidentes" class="tabla-contenedor"></div>
+      </section>
     </section>
 
-    <div class="columnas">
-      <div class="columna">
-        <section class="tarjeta">
-          <h2>Hosts bloqueados <button id="btn-bloqueados" class="discreto">↻</button></h2>
-          <div id="bloqueados"></div>
-        </section>
+    <!-- Hosts bloqueados -->
+    <section data-vista="bloqueados" class="vista" hidden>
+      <section class="panel">
+        <header class="panel-cabecera">
+          <h2>Hosts bloqueados en Ryu</h2>
+          <button id="btn-bloqueados" class="discreto empuje" aria-label="Actualizar">↻ Actualizar</button>
+        </header>
+        <div id="bloqueados" class="tabla-contenedor"></div>
+      </section>
+    </section>
 
-        <section class="tarjeta">
-          <h2>Incidentes
-            <select id="filtro-origen" title="Origen de los incidentes">
-              <option value="real" selected>Reales</option>
-              <option value="prueba">De prueba</option>
-              <option value="todos">Todos</option>
-            </select>
-            <span class="paginacion">
-              <button id="pag-anterior" class="discreto">◀</button>
-              <span id="pag-numero">1</span>
-              <button id="pag-siguiente" class="discreto">▶</button>
-            </span>
-          </h2>
-          <div id="incidentes"></div>
-        </section>
+    <!-- Recomendaciones (C7): la arma recomendaciones.js -->
+    <section data-vista="recomendaciones" class="vista" hidden><section id="recomendaciones" class="panel"></section></section>
 
-        <section id="detalle" class="tarjeta" hidden></section>
-      </div>
+    <!-- Laboratorio -->
+    <section data-vista="laboratorio" class="vista" hidden>
+      <section id="laboratorio" class="panel">
+        <header class="panel-cabecera"><h2>Laboratorio</h2><span class="secundario">escenarios aislados de los incidentes reales</span></header>
+        <div class="fila controles-lab">
+          <button id="lab-desarrollo" class="lanzar">▶ Desarrollo</button>
+          <button id="lab-validacion" class="lanzar">▶ Validación</button>
+          <button id="lab-todos" class="lanzar">▶ Todos</button>
+          <label class="casilla"><input type="checkbox" id="lab-llm"> usar LLM</label>
+          <label class="casilla"><input type="checkbox" id="lab-correos"> enviar correos</label>
+          <label>Repeticiones
+            <select id="lab-repeticiones"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select>
+          </label>
+          <label>Variante
+            <select id="lab-variante"><option value="sin_contexto">sin contexto</option><option value="con_contexto">con contexto (historial sembrado)</option></select>
+          </label>
+          <label>Decisión (simulada)
+            <select id="lab-modo"><option value="autonomo_acotado">autónomo acotado</option><option value="recomendar">recomendar</option><option value="solo_explicar">solo explicar</option></select>
+          </label>
+          <label>Umbral <input id="lab-umbral" type="number" min="0.5" max="1" step="0.05" value="0.85" class="mono"></label>
+        </div>
+        <p id="lab-costo" class="mensaje"></p>
+        <div class="fila"><span class="barra ancha"><span id="lab-barra"></span></span><span id="lab-progreso" class="mono"></span></div>
+        <p id="lab-msg" class="mensaje"></p>
+        <div class="columnas-lab">
+          <div><h3>Escenarios</h3><div id="lab-escenarios" class="tabla-contenedor"></div></div>
+          <div><h3>Resultados <small id="lab-corrida" class="mono"></small></h3><div id="lab-resumen"></div><div id="lab-resultados" class="tabla-contenedor"></div></div>
+        </div>
+        <div class="bloque">
+          <h3>Comparar corridas <small class="secundario">hasta 4 · conjunto común de casos</small></h3>
+          <div id="comparar-corridas" class="fila"></div>
+          <div class="fila">
+            <button id="btn-comparar">Comparar</button>
+            <button id="btn-comparar-json">JSON de la comparación</button>
+            <button id="btn-comparar-csv">CSV de la comparación</button>
+            <span id="comparar-msg" class="mensaje"></span>
+          </div>
+          <div id="comparar-resultado" class="tabla-contenedor"></div>
+        </div>
+        <div class="bloque">
+          <h3>Pruebas automáticas</h3>
+          <div class="fila">
+            <button id="btn-pytest-unit">Ejecutar pruebas unitarias</button>
+            <button id="btn-pytest-integracion">Ejecutar pruebas de integración</button>
+            <span id="pytest-msg" class="mensaje"></span>
+          </div>
+          <pre id="pytest-consola" class="consola" aria-label="Salida de pytest"></pre>
+        </div>
+        <div class="bloque">
+          <h3>Exportar</h3>
+          <div class="fila">
+            <select id="export-origen" aria-label="Origen a exportar"><option value="real">Reales</option><option value="prueba">De prueba</option><option value="todos">Todos</option></select>
+            <button id="btn-export-incidentes">CSV de incidentes</button>
+            <button id="btn-export-json">JSON de la corrida</button>
+            <button id="btn-export-csv">CSV de la corrida</button>
+            <span id="export-msg" class="mensaje"></span>
+          </div>
+        </div>
+      </section>
+    </section>
 
-      <div class="columna">
-        <section class="tarjeta">
-          <h2>Línea de tiempo en vivo</h2>
-          <ol id="linea-tiempo" class="lista-eventos"></ol>
-          <pre id="evento-json" class="json" hidden></pre>
-        </section>
+    <!-- Auditoría -->
+    <section data-vista="auditoria" class="vista" hidden>
+      <section class="panel">
+        <header class="panel-cabecera">
+          <h2>Auditoría</h2>
+          <button id="btn-verificar" class="empuje">Verificar cadena</button>
+        </header>
+        <div id="ind-auditoria" class="estado-cadena">—</div>
+        <div id="auditoria" class="tabla-contenedor"></div>
+      </section>
+    </section>
 
-        <section class="tarjeta">
-          <h2>Umbrales de Ryu</h2>
-          <form id="form-umbrales" class="umbrales"></form>
-          <p id="msg-umbrales" class="mensaje"></p>
-        </section>
-
-        <section class="tarjeta">
-          <h2>Auditoría <span id="ind-auditoria" class="indicador">—</span>
-            <button id="btn-verificar" class="discreto">Verificar</button></h2>
-          <ol id="auditoria" class="lista-eventos"></ol>
-        </section>
-      </div>
-    </div>
-
-    <section id="laboratorio" class="tarjeta">
-      <h2>Laboratorio <small>escenarios aislados de los incidentes reales</small></h2>
-      <div class="fila controles-lab">
-        <button id="lab-desarrollo" class="lanzar">▶ Desarrollo</button>
-        <button id="lab-validacion" class="lanzar">▶ Validación</button>
-        <button id="lab-todos" class="lanzar">▶ Todos</button>
-        <label><input type="checkbox" id="lab-llm"> usar LLM</label>
-        <label><input type="checkbox" id="lab-correos"> enviar correos</label>
-        <label>Repeticiones
-          <select id="lab-repeticiones"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select>
-        </label>
-        <span id="lab-costo" class="mensaje"></span>
-      </div>
-      <div class="fila"><span class="barra ancha"><span id="lab-barra"></span></span><span id="lab-progreso"></span></div>
-      <p id="lab-msg" class="mensaje"></p>
-      <div class="columnas-lab">
-        <div><h3>Escenarios</h3><div id="lab-escenarios"></div></div>
-        <div><h3>Resultados <small id="lab-corrida"></small></h3><div id="lab-resumen"></div><div id="lab-resultados"></div></div>
-      </div>
-      <div class="bloque">
-        <h3>Pruebas automáticas</h3>
-        <button id="btn-pytest-unit">Ejecutar pruebas unitarias</button>
-        <button id="btn-pytest-integracion">Ejecutar pruebas de integración</button>
-        <span id="pytest-msg" class="mensaje"></span>
-        <pre id="pytest-consola" class="json consola"></pre>
-      </div>
-      <div class="bloque">
-        <h3>Exportar</h3>
-        <select id="export-origen"><option value="real">Reales</option><option value="prueba">De prueba</option><option value="todos">Todos</option></select>
-        <button id="btn-export-incidentes">CSV de incidentes</button>
-        <button id="btn-export-json">JSON de la corrida</button>
-        <button id="btn-export-csv">CSV de la corrida</button>
-        <span id="export-msg" class="mensaje"></span>
-      </div>
+    <!-- Configuración -->
+    <section data-vista="configuracion" class="vista vista-configuracion" hidden>
+      <section class="panel">
+        <header class="panel-cabecera"><h2>Explicación con LLM</h2></header>
+        <p class="ayuda">Si se apaga, los incidentes nuevos se explican por reglas. Aplica de inmediato.</p>
+        <div class="fila"><button id="btn-llm" class="interruptor">LLM —</button></div>
+      </section>
+      <section class="panel">
+        <header class="panel-cabecera"><h2>Contexto dinámico del host</h2></header>
+        <p class="ayuda">Si se enciende, el LLM y las reglas usan el historial del host y la actividad reciente de la red. Aplica a los incidentes nuevos.</p>
+        <div class="fila">
+          <button id="btn-contexto" class="interruptor">Contexto —</button>
+          <label>Historial <input id="campo-historial" type="number" min="1" max="90" class="mono"> días</label>
+          <label>Actividad de la red <input id="campo-campana" type="number" min="5" max="240" class="mono"> min</label>
+          <button id="btn-ventanas">Guardar ventanas</button>
+        </div>
+      </section>
+      <section class="panel">
+        <header class="panel-cabecera"><h2>Agrupación de alertas</h2></header>
+        <div class="fila">
+          <label>DEDUP <input id="campo-dedup" type="number" min="10" max="3600" class="mono"> s</label>
+          <button id="btn-dedup">Guardar</button>
+        </div>
+        <p id="msg-config" class="mensaje"></p>
+      </section>
+      <section id="config-politica" class="panel"></section>
+      <section class="panel">
+        <header class="panel-cabecera"><h2>Umbrales de Ryu</h2></header>
+        <form id="form-umbrales" class="umbrales"></form>
+        <p id="msg-umbrales" class="mensaje"></p>
+      </section>
     </section>
   </main>
 
+  <!-- Detalle del incidente: panel lateral derecho (#/incidentes/<id>) -->
+  <aside id="detalle" class="panel-lateral" hidden aria-label="Detalle del incidente"></aside>
+
   <!-- Desbloqueo: exige escribir la IP exacta y un motivo -->
   <div id="modal" class="velo" hidden>
-    <form id="form-desbloqueo" class="tarjeta dialogo">
-      <h2>Desbloquear <span id="modal-ip"></span></h2>
-      <p class="ayuda">El agente nunca desbloquea solo. Escribe la IP exacta para confirmar.</p>
+    <form id="form-desbloqueo" class="dialogo" aria-labelledby="titulo-desbloqueo">
+      <h2 id="titulo-desbloqueo">Desbloquear <span id="modal-ip" class="mono"></span></h2>
+      <p class="advertencia">Esta acción quita la regla DROP en Ryu y el host vuelve a tener red. El agente nunca desbloquea solo: confirma escribiendo la IP exacta.</p>
       <label for="modal-confirmacion">IP del host</label>
-      <input id="modal-confirmacion" autocomplete="off">
+      <input id="modal-confirmacion" autocomplete="off" class="mono">
       <label for="modal-motivo">Motivo (5 a 200 caracteres)</label>
       <textarea id="modal-motivo" maxlength="200" rows="3"></textarea>
+      <label for="modal-clasificacion">Clasificación (obligatoria)</label>
+      <select id="modal-clasificacion">
+        <option value="" selected>Elige una clasificación…</option>
+        <option value="falso_positivo">Falso positivo</option>
+        <option value="amenaza_contenida">Amenaza contenida</option>
+        <option value="otro">Otro</option>
+      </select>
+      <ul class="ayuda">
+        <li>Falso positivo: la actividad era legítima.</li>
+        <li>Amenaza contenida: era un ataque real y ya se limpió el host.</li>
+        <li>Otro: ninguna de las anteriores; explícalo en el motivo.</li>
+      </ul>
       <p id="modal-resultado" class="mensaje"></p>
       <div class="acciones">
         <button type="button" id="modal-cancelar">Cancelar</button>
-        <button type="submit" id="modal-confirmar" class="peligro" disabled>Confirmar</button>
+        <button type="submit" id="modal-confirmar" class="peligro" disabled>Confirmar desbloqueo</button>
       </div>
     </form>
   </div>

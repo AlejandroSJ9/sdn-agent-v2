@@ -58,8 +58,7 @@ async function mostrarUltimo() {
   } catch { /* sin ejecuciones previas */ }
 }
 
-async function descargar(ruta, nombre) {
-  const salida = $("export-msg");
+export async function descargar(ruta, nombre, salida = $("export-msg")) {
   try {
     const respuesta = await fetch(ruta, { headers: { "X-Operador-Token": token.leer() } });
     if (respuesta.status === 401) {

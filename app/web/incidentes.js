@@ -1,7 +1,10 @@
 // Incidentes: tabla paginada y detalle (#/incidentes/<id>) con métricas, explicación, tiempos y reenvío.
 
 import { api } from "./api.js";
-import { $, chip, duracion, el, hora, mensaje, msEntre, vaciar } from "./dom.js";
+import { contenidoContexto } from "./contexto.js";
+import { contenidoInforme } from "./informe.js";
+import { contenidoDecision } from "./recomendaciones.js";
+import { $, badge, duracion, el, hora, mensaje, mono, msEntre, vaciar } from "./dom.js";
 
 const POR_PAGINA = 20;
 let pagina = 0;
@@ -16,14 +19,29 @@ const ETAPAS = [
   ["t_desbloqueado", "Desbloqueado por el operador"],
 ];
 
+const SEVERIDAD = { critica: "CRÍTICA", alta: "ALTA", media: "MEDIA" };
+const CLASE_NOTIFICACION = { enviada: "ok", fallida: "critica", omitida: "info" };
+
 function etiquetaPrueba(incidente) {
-  return incidente.origen === "prueba" ? [" ", chip(`PRUEBA ${incidente.caso_id ?? ""}`.trim(), "prueba")] : null;
+  return incidente.origen === "prueba" ? [" ", badge(`PRUEBA ${incidente.caso_id ?? ""}`.trim(), "etiqueta prueba")] : null;
 }
 
 function fuente(incidente) {
-  if (incidente.fuente_explicacion === "llm") return chip("LLM", "llm");
-  if (incidente.fuente_explicacion === "reglas") return chip("reglas");
-  return chip("pendiente");
+  if (incidente.fuente_explicacion === "llm") return badge("LLM", "etiqueta");
+  if (incidente.fuente_explicacion === "reglas") return badge("reglas", "etiqueta");
+  return badge("pendiente", "info");
+}
+
+function severidad(valor) {
+  return valor ? badge(SEVERIDAD[valor] ?? valor, valor) : badge("—", "info");
+}
+
+function estadoIncidente(incidente) {
+  return incidente.t_desbloqueado ? badge("desbloqueado", "ok") : badge("abierto", "alta");
+}
+
+function estadoNotificacion(estado) {
+  return estado ? badge(estado, CLASE_NOTIFICACION[estado] ?? "info") : badge("—", "info");
 }
 
 export async function refrescarIncidentes() {
@@ -34,21 +52,21 @@ export async function refrescarIncidentes() {
     $("pag-anterior").disabled = pagina === 0;
     $("pag-siguiente").disabled = lista.length < POR_PAGINA;
     if (!lista.length) {
-      vaciar(contenedor, el("p", { class: "mensaje" }, "Sin incidentes en esta página."));
+      vaciar(contenedor, el("p", { class: "mensaje" }, pagina === 0 ? "Sin incidentes." : "Sin incidentes en esta página."));
       return;
     }
     const filas = lista.map((i) =>
       el(
         "tr",
         { class: "clic", onclick: () => { location.hash = `#/incidentes/${i.id}`; } },
-        el("td", {}, `#${i.id}`),
-        el("td", {}, i.host_origen, etiquetaPrueba(i)),
-        el("td", {}, chip(i.severidad)),
-        el("td", {}, i.veredicto ?? "—"),
+        el("td", { class: "mono" }, `#${i.id}`),
+        el("td", {}, mono(i.host_origen), etiquetaPrueba(i)),
+        el("td", {}, severidad(i.severidad)),
+        el("td", {}, badge(i.veredicto ?? "—", "etiqueta")),
         el("td", {}, fuente(i)),
-        el("td", {}, i.contador_alertas),
-        el("td", {}, chip(i.ultima_notificacion?.estado ?? "—")),
-        el("td", {}, i.t_desbloqueado ? "desbloqueado" : "abierto"),
+        el("td", { class: "mono" }, i.contador_alertas),
+        el("td", {}, estadoNotificacion(i.ultima_notificacion?.estado)),
+        el("td", {}, estadoIncidente(i)),
       ),
     );
     const titulos = ["#", "Host", "Severidad", "Veredicto", "Fuente", "Alertas", "Correo", "Estado"];
@@ -68,19 +86,27 @@ function bloque(titulo, ...contenido) {
 
 function tablaTiempos(incidente) {
   let anterior = null;
-  const filas = ETAPAS.map(([clave, nombre]) => {
+  const pasos = ETAPAS.map(([clave, nombre]) => {
     const valor = incidente[clave];
     const delta = valor && anterior ? `+${duracion(msEntre(anterior, valor))}` : "";
     if (valor) anterior = valor;
-    return el("tr", {}, el("td", {}, nombre), el("td", {}, hora(valor)), el("td", {}, delta));
+    return el("li", { class: valor ? "hecho" : "" }, el("span", {}, nombre), el("span", { class: "mono" }, hora(valor)),
+      delta ? el("span", { class: "delta" }, delta) : null);
   });
   const total = duracion(msEntre(incidente.t_ryu, incidente.t_notificado));
-  return el("div", {}, el("table", {}, el("tbody", {}, filas)), el("p", { class: "mensaje" }, `Ryu → correo: ${total}`));
+  return el("div", {}, el("ol", { class: "tiempos" }, pasos), el("p", { class: "mensaje" }, "Ryu → correo: ", mono(total)));
+}
+
+function barraConfianza(confianza) {
+  if (confianza === null || confianza === undefined) return "—";
+  const barra = el("span", { class: "barra" }, el("span", { style: `width: ${Math.round(100 * confianza)}%` }));
+  return el("span", { class: "confianza" }, barra, mono(confianza.toFixed(2)));
 }
 
 function tablaMetricas(metricas) {
   if (!metricas) return el("p", { class: "mensaje" }, "Sin métricas.");
-  const filas = Object.entries(metricas).map(([nombre, valor]) => el("tr", {}, el("td", {}, nombre), el("td", {}, String(valor))));
+  const filas = Object.entries(metricas).map(([nombre, valor]) =>
+    el("tr", {}, el("td", { class: "mono" }, nombre), el("td", { class: "mono" }, String(valor))));
   return el("table", {}, el("tbody", {}, filas));
 }
 
@@ -107,46 +133,62 @@ export async function mostrarDetalle(id) {
     const i = await api(`/api/incidentes/${id}`);
     if (idEnDetalle !== id) return;
     const salida = el("p", { class: "mensaje" });
-    const boton = el("button", { class: "primario" }, "Reenviar correo");
+    const boton = el("button", {}, "Reenviar correo");
     boton.addEventListener("click", () => reenviar(boton, salida));
     const notif = i.ultima_notificacion;
     vaciar(
       seccion,
-      el("h2", {}, `Detalle del incidente #${i.id} · ${i.host_origen}`, etiquetaPrueba(i), el("a", { href: "#/", class: "discreto" }, "cerrar")),
-      el(
-        "dl",
-        { class: "detalle-grid" },
-        dato("Veredicto (informativo)", i.veredicto),
-        dato("Severidad", chip(i.severidad)),
-        dato("Técnica MITRE", i.tecnica_mitre),
-        dato("Confianza", i.confianza === null ? "—" : i.confianza.toFixed(2)),
-        dato("Fuente de la explicación", fuente(i)),
-        dato("Motivo del respaldo", i.motivo_respaldo),
-        dato("Estado", i.t_desbloqueado ? "desbloqueado" : "abierto (bloqueado por Ryu)"),
-        dato("Switch", i.dpid_switch),
-      ),
+      el("h2", {}, `Incidente #${i.id} · `, mono(i.host_origen), etiquetaPrueba(i),
+        el("a", { href: "#/incidentes", class: "empuje", "aria-label": "Cerrar detalle" }, "✕ Cerrar")),
       bloque(
-        `Métricas de la alerta que originó el incidente · alertas agrupadas: ${i.contador_alertas}`,
-        tablaMetricas(i.metricas),
-        el("p", {}, "Umbrales superados: ", (i.umbrales_superados ?? []).join(", ") || "ninguno"),
+        "Resumen",
+        el(
+          "dl",
+          { class: "detalle-grid" },
+          dato("Veredicto (informativo)", badge(i.veredicto ?? "—", "etiqueta")),
+          dato("Severidad", severidad(i.severidad)),
+          dato("Técnica MITRE", mono(i.tecnica_mitre)),
+          dato("Confianza", barraConfianza(i.confianza)),
+          dato("Fuente de la explicación", fuente(i)),
+          dato("Motivo del respaldo", i.motivo_respaldo ? mono(i.motivo_respaldo) : "—"),
+          dato("Estado", estadoIncidente(i)),
+          dato("Switch", mono(i.dpid_switch)),
+          dato("Variante", i.variante ? badge(i.variante.replace("_", " "), "etiqueta") : "—"),
+          dato("Versión del prompt", mono(i.version_prompt)),
+        ),
       ),
-      bloque("Explicación", el("p", { class: "texto-largo" }, i.explicacion ?? "Aún sin explicación.")),
-      bloque("Evidencias", el("ul", {}, (i.evidencias ?? []).map((e) => el("li", {}, e)))),
-      bloque("Recomendación al operador", el("p", { class: "texto-largo" }, i.recomendacion_operador ?? "—")),
+      bloque("Contexto usado", ...contenidoContexto(i)),
+      bloque("Decisión de la política", ...contenidoDecision(i)),
+      // Fase 6.8b: con informe, las 4 secciones auditables; sin informe (incidentes previos), la vista anterior
+      i.informe ? [bloque("Resumen del informe", el("p", { class: "texto-largo" }, i.explicacion ?? "—"),
+        el("h3", {}, "Recomendación al operador"), el("p", { class: "texto-largo" }, i.recomendacion_operador ?? "—")),
+      ...contenidoInforme(i)] : [
+        bloque(
+          `Métricas de la alerta que originó el incidente · alertas agrupadas: ${i.contador_alertas}`,
+          tablaMetricas(i.metricas),
+          el("p", { class: "mensaje" }, "Umbrales superados: ", mono((i.umbrales_superados ?? []).join(", ") || "ninguno")),
+        ),
+        bloque(
+          "Explicación y evidencias",
+          el("p", { class: "texto-largo" }, i.explicacion ?? "Aún sin explicación."),
+          el("ul", {}, (i.evidencias ?? []).map((e) => el("li", {}, e))),
+          el("h3", {}, "Recomendación al operador"),
+          el("p", { class: "texto-largo" }, i.recomendacion_operador ?? "—"),
+        )],
       bloque("Tiempos por etapa", tablaTiempos(i)),
       bloque(
-        "Última notificación",
-        el("p", {}, notif ? [chip(notif.estado), ` ${notif.intentos} intento(s) · `, hora(notif.ts)] : "Sin notificaciones."),
+        "Notificación y acciones",
+        el("p", {}, notif ? [estadoNotificacion(notif.estado), " ", mono(`${notif.intentos} intento(s)`), " · ", hora(notif.ts)] : "Sin notificaciones."),
         notif && (notif.error || notif.codigo_http)
-          ? el("p", { class: "mensaje" }, `Código HTTP: ${notif.codigo_http ?? "—"} · Error: ${notif.error ?? "—"}`)
+          ? el("p", { class: "mensaje mono" }, `Código HTTP: ${notif.codigo_http ?? "—"} · Error: ${notif.error ?? "—"}`)
           : null,
         boton,
         salida,
       ),
     );
-    seccion.scrollIntoView({ behavior: "smooth", block: "start" });
   } catch (error) {
-    vaciar(seccion, el("h2", {}, `Incidente #${id}`), el("p", { class: "mensaje error" }, error.message));
+    vaciar(seccion, el("h2", {}, `Incidente #${id}`, el("a", { href: "#/incidentes", class: "empuje" }, "✕ Cerrar")),
+      el("p", { class: "mensaje error" }, error.message));
   }
 }
 

@@ -1,13 +1,13 @@
-// Cabecera: salud del agente, Ryu, conexión en vivo, cupo del LLM, configuración en caliente y tarjetas.
+// Cabecera: salud del agente, Ryu, conexión en vivo, cupo del LLM, alertas rechazadas, configuración y tarjetas.
 
 import { api } from "./api.js";
-import { $, el, mensaje, vaciar } from "./dom.js";
+import { $, el, hora, mensaje, vaciar } from "./dom.js";
 
 let configActual = null;
 
 function indicador(id, texto, clase) {
   const nodo = $(id);
-  nodo.className = `indicador ${clase}`;
+  nodo.className = `chip-estado ${clase}`;
   vaciar(nodo, texto);
 }
 
@@ -24,10 +24,10 @@ function aviso(clave, texto) {
 
 export function marcarConexion({ conectado, reintentoEn }) {
   if (conectado) {
-    indicador("ind-vivo", "● En vivo", "ok");
+    indicador("ind-vivo", "En vivo", "ok");
     aviso("vivo", null);
   } else {
-    indicador("ind-vivo", "● Sin conexión en vivo", "mal");
+    indicador("ind-vivo", "Sin conexión en vivo", "mal");
     const detalle = reintentoEn ? `; reintentando en ${Math.round(reintentoEn / 1000)} s` : "";
     aviso("vivo", `Sin conexión en vivo con el agente${detalle}. El panel sigue funcionando; refresca a mano si lo necesitas.`);
   }
@@ -36,9 +36,9 @@ export function marcarConexion({ conectado, reintentoEn }) {
 async function refrescarSalud() {
   try {
     const salud = await fetch("/api/salud").then((r) => r.json());
-    indicador("ind-agente", `● Agente ${salud.version}`, "ok");
+    indicador("ind-agente", `Agente ${salud.version}`, "ok");
   } catch {
-    indicador("ind-agente", "● Agente sin respuesta", "mal");
+    indicador("ind-agente", "Agente sin respuesta", "mal");
   }
 }
 
@@ -46,14 +46,14 @@ async function refrescarRyu() {
   try {
     const ryu = await api("/api/ryu/estado");
     if (ryu.disponible) {
-      indicador("ind-ryu", `● Ryu disponible (${ryu.switches?.length ?? 0} switch)`, "ok");
+      indicador("ind-ryu", `Ryu · ${ryu.switches?.length ?? 0} switch`, "ok");
       aviso("ryu", null);
     } else {
-      indicador("ind-ryu", "● Ryu no disponible", "mal");
+      indicador("ind-ryu", "Ryu no disponible", "mal");
       aviso("ryu", `Ryu no responde (${ryu.error}). Las acciones sobre Ryu fallarán hasta que vuelva.`);
     }
   } catch (error) {
-    indicador("ind-ryu", "● Ryu: sin datos", "aviso");
+    indicador("ind-ryu", "Ryu: sin datos", "aviso");
   }
 }
 
@@ -62,8 +62,27 @@ async function refrescarCupo() {
     const cupo = await api("/api/llm/cupo");
     vaciar($("cupo-texto"), `${cupo.usadas}/${cupo.cupo}`);
     $("cupo-texto").title = `Restantes ${cupo.restantes} · fallidas ${cupo.fallidas} · día UTC ${cupo.fecha}`;
-    $("cupo-barra").style.width = `${Math.min(100, (100 * cupo.usadas) / Math.max(cupo.cupo, 1))}%`;
+    const uso = Math.min(100, (100 * cupo.usadas) / Math.max(cupo.cupo, 1));
+    $("cupo-barra").style.width = `${uso}%`;
+    vaciar($("res-cupo"), `${cupo.usadas}/${cupo.cupo}`);
+    $("ind-cupo").className = `chip-estado ${uso >= 100 ? "mal" : uso >= 80 ? "aviso" : "neutro"}`;
   } catch { /* el aviso general ya informa */ }
+}
+
+async function refrescarRechazadas() {
+  try {
+    const r = await api("/api/alertas/rechazadas");
+    vaciar($("rechazadas-texto"), r.total);
+    $("ind-rechazadas").className = `chip-estado ${r.total > 0 ? "aviso" : "neutro"}`;
+    const lineas = r.motivos.map((m) => el("li", {}, el("span", { class: "mono" }, `${m.codigo}`), ` ${m.detalle} — ${m.cantidad} ${m.cantidad === 1 ? "vez" : "veces"}, última ${hora(m.ultima)}`));
+    vaciar($("detalle-rechazadas"), lineas.length ? el("ul", {}, lineas) : "Ninguna alerta rechazada desde que arrancó el agente.");
+  } catch { /* el aviso general ya informa */ }
+}
+
+function alternarRechazadas() {
+  const detalle = $("detalle-rechazadas");
+  detalle.hidden = !detalle.hidden;
+  $("ind-rechazadas").setAttribute("aria-expanded", String(!detalle.hidden));
 }
 
 async function refrescarConfig() {
@@ -72,7 +91,13 @@ async function refrescarConfig() {
     const boton = $("btn-llm");
     boton.classList.toggle("encendido", configActual.LLM_HABILITADO);
     vaciar(boton, configActual.LLM_HABILITADO ? "LLM encendido" : "LLM apagado (reglas)");
+    indicador("ind-llm", configActual.LLM_HABILITADO ? "LLM encendido" : "LLM apagado", configActual.LLM_HABILITADO ? "ok" : "neutro");
     if (document.activeElement !== $("campo-dedup")) $("campo-dedup").value = configActual.DEDUP_SEGUNDOS;
+    const contexto = $("btn-contexto");
+    contexto.classList.toggle("encendido", configActual.CONTEXTO_HABILITADO);
+    vaciar(contexto, configActual.CONTEXTO_HABILITADO ? "Contexto encendido" : "Contexto apagado");
+    if (document.activeElement !== $("campo-historial")) $("campo-historial").value = configActual.HISTORIAL_DIAS;
+    if (document.activeElement !== $("campo-campana")) $("campo-campana").value = configActual.CAMPANA_MINUTOS;
   } catch { /* sin cambios */ }
 }
 
@@ -94,6 +119,7 @@ export function refrescarEstado() {
   refrescarSalud();
   refrescarRyu();
   refrescarCupo();
+  refrescarRechazadas();
   refrescarConfig();
   return refrescarResumen();
 }
@@ -120,5 +146,18 @@ export function iniciarEstado() {
     }
     guardarConfig({ DEDUP_SEGUNDOS: valor });
   });
-  setInterval(() => { refrescarRyu(); refrescarCupo(); }, 30000);
+  $("btn-contexto").addEventListener("click", () => {
+    if (configActual) guardarConfig({ CONTEXTO_HABILITADO: !configActual.CONTEXTO_HABILITADO });
+  });
+  $("btn-ventanas").addEventListener("click", () => {
+    const dias = Number($("campo-historial").value);
+    const minutos = Number($("campo-campana").value);
+    if (!Number.isInteger(dias) || dias < 1 || dias > 90 || !Number.isInteger(minutos) || minutos < 5 || minutos > 240) {
+      mensaje($("msg-config"), "Historial: entero de 1 a 90 días · Actividad de la red: entero de 5 a 240 min", "error");
+      return;
+    }
+    guardarConfig({ HISTORIAL_DIAS: dias, CAMPANA_MINUTOS: minutos });
+  });
+  $("ind-rechazadas").addEventListener("click", alternarRechazadas);
+  setInterval(() => { refrescarRyu(); refrescarCupo(); refrescarRechazadas(); }, 30000);
 }

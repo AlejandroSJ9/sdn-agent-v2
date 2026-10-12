@@ -14,7 +14,7 @@ export function el(etiqueta, atributos = {}, ...hijos) {
 
 // Agrega hijos: los nodos tal cual; cualquier otro valor como texto.
 export function poner(nodo, ...hijos) {
-  for (const hijo of hijos.flat()) {
+  for (const hijo of hijos.flat(Infinity)) { // listas anidadas de nodos a cualquier profundidad
     if (hijo === null || hijo === undefined || hijo === false) continue;
     nodo.append(hijo instanceof Node ? hijo : document.createTextNode(String(hijo)));
   }
@@ -64,4 +64,13 @@ export function agrupar(funcion, espera = 300) {
     clearTimeout(temporizador);
     temporizador = setTimeout(() => funcion(...argumentos), espera);
   };
+}
+
+// Badge de estado (severidad, notificación…) y texto monoespaciado (IPs, IDs, tiempos, métricas).
+export function badge(texto, clase = "") {
+  return el("span", { class: `badge ${clase}`.trim() }, texto ?? "—");
+}
+
+export function mono(texto) {
+  return el("span", { class: "mono" }, texto ?? "—");
 }

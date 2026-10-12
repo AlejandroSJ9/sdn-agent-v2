@@ -1,0 +1,167 @@
+/* Panel SOC · componentes. El color solo comunica estado o acción. */
+
+/* ---- Paneles y KPI ---- */
+.panel { background: var(--panel); border: 1px solid var(--borde); border-radius: var(--radio); padding: 14px 16px; min-width: 0; }
+.panel-cabecera { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.empuje { margin-left: auto; }
+.kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
+.kpi { background: var(--panel); border: 1px solid var(--borde); border-radius: var(--radio); padding: 14px 16px; display: grid; gap: 4px; }
+.kpi strong { font-size: 28px; font-weight: 600; line-height: 1.1; }
+.kpi span { color: var(--secundario); font-size: 12px; }
+@media (max-width: 1279px) { .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+/* ---- Chips de estado (barra superior) ---- */
+.chip-estado {
+  display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+  padding: 3px 10px; border: 1px solid var(--borde); border-radius: 999px;
+  background: var(--elevado); color: var(--texto); font-size: 12px;
+}
+.chip-estado::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--info); }
+.chip-estado.ok::before { background: var(--ok); }
+.chip-estado.mal::before { background: var(--critica); }
+.chip-estado.aviso::before { background: var(--alta); }
+button.chip-estado { cursor: pointer; font: inherit; font-size: 12px; }
+button.chip-estado.aviso { border-color: var(--alta); color: var(--alta); }
+
+/* ---- Badges (severidad, estados) y etiquetas neutras ---- */
+.badge, .chip {
+  display: inline-block; padding: 1px 8px; border-radius: 4px; border: 1px solid var(--borde);
+  font-size: 11px; font-weight: 600; letter-spacing: .03em; color: var(--secundario); white-space: nowrap;
+}
+.badge.critica, .chip.critica, .chip.fallida { color: var(--critica); border-color: var(--critica); background: rgba(239, 68, 68, .12); }
+.badge.alta, .chip.alta { color: var(--alta); border-color: var(--alta); background: rgba(245, 158, 11, .12); }
+.badge.media, .chip.media { color: var(--media); border-color: var(--media); background: rgba(234, 179, 8, .12); }
+.badge.ok, .chip.enviada { color: var(--ok); border-color: var(--ok); background: rgba(34, 197, 94, .12); }
+.badge.info, .chip.omitida { color: var(--secundario); border-color: var(--info); }
+.etiqueta, .chip.llm, .chip.reglas { font-weight: 500; color: var(--texto); background: var(--elevado); }
+.etiqueta.prueba, .chip.prueba { color: var(--secundario); border-style: dashed; font-weight: 500; }
+
+/* ---- Botones ---- */
+button {
+  font: inherit; font-size: 13px; color: var(--texto); background: var(--elevado);
+  border: 1px solid var(--borde); border-radius: var(--radio); padding: 6px 12px; cursor: pointer;
+  transition: background-color var(--rapido), border-color var(--rapido), color var(--rapido);
+}
+button:hover:not(:disabled) { border-color: var(--secundario); }
+button:disabled { opacity: .45; cursor: not-allowed; }
+button.primario { background: var(--acento); border-color: var(--acento); color: var(--fondo); font-weight: 600; }
+button.primario:hover:not(:disabled) { background: #5b95f7; }
+button.peligro { background: transparent; border-color: var(--critica); color: var(--critica); }
+button.peligro:hover:not(:disabled) { background: rgba(239, 68, 68, .12); }
+button.discreto { background: transparent; border-color: transparent; color: var(--secundario); }
+button.discreto:hover:not(:disabled) { color: var(--texto); border-color: var(--borde); }
+.interruptor.encendido { border-color: var(--ok); color: var(--ok); }
+
+/* ---- Formularios ---- */
+input, select, textarea {
+  font: inherit; font-size: 13px; color: var(--texto); background: var(--fondo);
+  border: 1px solid var(--borde); border-radius: var(--radio); padding: 6px 8px;
+}
+input[type=number] { width: 90px; }
+input[type=checkbox] { accent-color: var(--acento); }
+label { color: var(--secundario); font-size: 13px; }
+.fila { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.umbrales { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: end; }
+.umbrales label { display: grid; gap: 4px; font-family: var(--mono); font-size: 12px; }
+
+/* ---- Tablas densas ---- */
+.tabla-contenedor { overflow: auto; max-height: calc(100vh - 220px); }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--borde); vertical-align: middle; }
+thead th {
+  position: sticky; top: 0; background: var(--elevado); color: var(--secundario);
+  font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; z-index: 1;
+}
+tbody tr:nth-child(even) { background: rgba(255, 255, 255, .015); }
+tbody tr.clic { cursor: pointer; transition: background-color var(--rapido); }
+tbody tr.clic:hover { background: var(--elevado); }
+.paginacion { display: inline-flex; align-items: center; gap: 4px; }
+.tabla-contenedor td.mono { white-space: nowrap; }  /* IDs, IPs y tiempos no se parten */
+.tabla-contenedor td.secundario { white-space: normal; }
+
+/* ---- Mensajes, avisos y estados vacíos ---- */
+.mensaje { color: var(--secundario); margin: 6px 0 0; font-size: 13px; }
+.mensaje.error { color: var(--critica); }
+.mensaje.exito { color: var(--ok); }
+.ayuda { color: var(--secundario); margin: 0 0 10px; font-size: 13px; }
+.aviso-franja { padding: 8px 12px; border: 1px solid var(--alta); border-left-width: 3px; border-radius: var(--radio); color: var(--texto); background: var(--panel); }
+.texto-ok { color: var(--ok); } .texto-mal { color: var(--critica); }
+.barra { display: block; height: 6px; background: var(--elevado); border-radius: 3px; overflow: hidden; }
+.barra > span { display: block; height: 100%; width: 0; background: var(--acento); }
+.barra.ancha { width: 260px; display: inline-block; }
+
+/* ---- Flujo del último incidente (stepper horizontal) ---- */
+.flujo {
+  display: grid; align-items: start; overflow-x: auto; padding: 4px 0;
+  grid-template-columns: repeat(4, minmax(90px, 1.2fr) minmax(48px, 1fr)) minmax(90px, 1.2fr); /* 5 pasos, 4 tramos */
+}
+.etapa { min-width: 0; display: grid; justify-items: center; gap: 4px; text-align: center; color: var(--secundario); }
+.etapa::before { content: ""; width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--info); background: var(--panel); }
+.etapa strong { font-size: 13px; font-weight: 500; }
+.etapa span { font-family: var(--mono); font-size: 12px; }
+.etapa.activa { color: var(--texto); }
+.etapa.activa::before { background: var(--acento); border-color: var(--acento); }
+.etapa.desbloqueado.activa::before { background: var(--ok); border-color: var(--ok); }
+.etapa.problema::before { background: var(--alta); border-color: var(--alta); }
+.etapa.nueva { animation: aparecer 150ms ease-out; }
+.cable { min-width: 0; margin-top: 6px; padding: 10px 4px 0; border-top: 2px solid var(--borde); text-align: center; font-family: var(--mono); font-size: 12px; color: var(--secundario); overflow-wrap: anywhere; }
+@keyframes aparecer { from { opacity: .4; } to { opacity: 1; } }
+
+/* ---- Línea de tiempo en vivo, JSON y consola ---- */
+.lista-eventos { list-style: none; margin: 0; padding: 0; max-height: 60vh; overflow-y: auto; font-size: 12px; }
+.lista-eventos li { display: flex; gap: 8px; padding: 5px 6px; border-bottom: 1px solid var(--borde); cursor: pointer; font-family: var(--mono); }
+.lista-eventos li:hover, .lista-eventos li.elegido { background: var(--elevado); }
+.lista-eventos .tipo { color: var(--texto); }
+.lista-eventos:empty::before { content: "Esperando eventos en vivo…"; display: block; padding: 8px 6px; color: var(--secundario); font-family: var(--fuente); }
+.lista-eventos .datos { color: var(--secundario); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.json, .consola { background: var(--fondo); border: 1px solid var(--borde); border-radius: var(--radio); padding: 10px; overflow: auto; font-family: var(--mono); font-size: 12px; white-space: pre-wrap; }
+.json { max-height: 260px; margin: 10px 0 0; }
+.consola { min-height: 80px; max-height: 320px; margin: 8px 0 0; color: var(--texto); }
+
+/* ---- Detalle del incidente: panel lateral derecho ---- */
+.panel-lateral {
+  position: fixed; top: var(--alto-barra); right: 0; bottom: 0; width: 480px; max-width: 100%;
+  background: var(--elevado); border-left: 1px solid var(--borde); padding: 16px 20px 32px; overflow-y: auto; z-index: 8;
+  animation: aparecer 150ms ease-out;
+}
+@media (max-width: 1023px) { .panel-lateral { width: 100%; } }
+.panel-lateral > h2 { display: flex; align-items: center; gap: 8px; padding-bottom: 10px; border-bottom: 1px solid var(--borde); }
+.detalle-grid { display: grid; grid-template-columns: 150px 1fr; gap: 6px 12px; margin: 0; font-size: 13px; }
+.detalle-grid dt { color: var(--secundario); }
+.detalle-grid dd { margin: 0; }
+.confianza { display: flex; align-items: center; gap: 8px; }
+.confianza .barra { width: 140px; }
+.bloque h3:first-child { margin-top: 18px; }
+.texto-largo { white-space: pre-wrap; margin: 0; }
+.tiempos { list-style: none; margin: 0; padding: 0 0 0 14px; border-left: 2px solid var(--borde); }
+.tiempos li { position: relative; padding: 4px 0 8px 8px; display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; font-size: 13px; }
+.tiempos li::before { content: ""; position: absolute; left: -21px; top: 8px; width: 10px; height: 10px; border-radius: 50%; background: var(--panel); border: 2px solid var(--info); }
+.tiempos li.hecho::before { background: var(--acento); border-color: var(--acento); }
+.tiempos .delta { grid-column: 1 / -1; color: var(--secundario); font-family: var(--mono); font-size: 12px; }
+
+/* ---- Auditoría ---- */
+.estado-cadena { font-size: 18px; font-weight: 600; padding: 12px 16px; margin-bottom: 12px; border: 1px solid var(--borde); border-left-width: 4px; border-radius: var(--radio); }
+.estado-cadena.ok { color: var(--ok); border-left-color: var(--ok); }
+.estado-cadena.mal { color: var(--critica); border-left-color: var(--critica); }
+.estado-cadena.aviso { color: var(--alta); border-left-color: var(--alta); }
+
+/* ---- Laboratorio ---- */
+.controles-lab { margin-bottom: 4px; }
+.casilla { display: inline-flex; align-items: center; gap: 6px; }
+.columnas-lab { display: grid; grid-template-columns: 1fr 1.4fr; gap: 16px; }
+@media (max-width: 1599px) { .columnas-lab { grid-template-columns: 1fr; } }
+
+/* ---- Velo, modal y acceso ---- */
+.velo { position: fixed; inset: 0; background: rgba(11, 15, 20, .8); display: grid; place-items: center; z-index: 20; }
+.dialogo { width: min(460px, 92vw); display: grid; gap: 8px; background: var(--elevado); border: 1px solid var(--borde); border-radius: var(--radio); padding: 20px; }
+.dialogo h2 { font-size: 16px; }
+.dialogo .acciones { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+.advertencia { margin: 0 0 4px; padding: 8px 10px; border: 1px solid var(--critica); border-left-width: 3px; border-radius: var(--radio); color: var(--texto); font-size: 13px; }
+
+/* ---- Contexto usado (C6): las clasificaciones del operador son lo único verificado ---- */
+tr.verificado td { background: rgba(59, 130, 246, .08); }
+tr.verificado td:first-child { box-shadow: inset 3px 0 0 var(--acento); }
+
+/* ---- Informe auditable (Fase 6.8b) ---- */
+.no-disponible { color: var(--secundario); font-style: italic; }
+.bloque.informe h3 { color: var(--acento); }
