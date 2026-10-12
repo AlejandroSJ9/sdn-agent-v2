@@ -59,6 +59,11 @@ function pintar(r) {
   // Fase 6.8a+b: el acierto es sobre el veredicto final; esto muestra el del LLM, los dictámenes y las alucinaciones
   resumen.push(
     el("tr", {}, el("td", {}, "veredicto del LLM"), ids.map((id) => el("td", { class: "mono" }, porcentaje(r.resumen[id].exactitud_veredicto_llm)))),
+    el("tr", {}, el("td", {}, "sin veredicto del LLM (respaldo)"), ids.map((id) => el("td", { class: "mono" }, String(r.resumen[id].sin_veredicto_llm)))),
+    el("tr", {}, el("td", {}, "cobertura del LLM"), ids.map((id) => {
+      const c = r.resumen[id].cobertura_llm;
+      return el("td", { class: "mono" }, `${c.llm}/${c.total} (${c.porcentaje ?? "—"} %)`);
+    })),
     el("tr", {}, el("td", {}, "dictámenes (agrav./aten.)"), ids.map((id) => {
       const d = r.resumen[id].dictamenes;
       return el("td", { class: "mono" }, `${d.agravante} / ${d.atenuante}`);

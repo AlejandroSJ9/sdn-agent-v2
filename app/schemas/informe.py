@@ -88,11 +88,12 @@ class Trazabilidad(BaseModel):
     hash_auditoria_explicacion: str | None
     t_ryu: str | None
     t_explicado: str
-    modelo: str
+    modelo: str | None  # None si hubo respaldo por reglas (no se usó el LLM)
+    modelo_configurado: str | None = None  # LLM_MODELO vigente cuando hubo respaldo (auditoría)
     fuente_explicacion: Literal["llm", "reglas"]
     version_prompt: str
     variante: str
-    veredicto_llm: str
+    veredicto_llm: str | None  # None si hubo respaldo por reglas
     veredicto_final: str
     accion_propuesta: str
     origen_accion: Literal["llm", "reglas", "dictamen"]

@@ -196,4 +196,8 @@ def obtener_corrida(corrida_id: int) -> dict[str, Any] | None:
     corrida = repository_laboratorio.obtener_corrida(corrida_id)
     if corrida is None:
         return None
+    # Terminada: las métricas se recalculan al leer (mismas funciones que la comparación); el resumen
+    # guardado al terminar queda solo como respaldo histórico en la base, sin mostrarse.
+    if corrida["resumen"] is not None:
+        corrida["resumen"] = resultados_lab.resumen_corrida(corrida_id)
     return {**corrida, "resultados": repository_laboratorio.resultados_de(corrida_id)}

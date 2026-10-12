@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 ASUNTO_PRUEBA = "[SDN] Prueba de notificación"
 CIERRE_INCIDENTE = "Ryu-IA mantiene el host bloqueado; solo el operador puede desbloquearlo desde el panel."
 MAX_EXPLICACION = 400
+SUFIJO_RESPALDO = " [respaldo por reglas]"
 
 
 def transporte_appscript():
@@ -128,6 +129,11 @@ def construir_payload(
                 f"Hora de detección (UTC): {_hora(fecha)}",
                 CIERRE_INCIDENTE,
             ]
+            if incidente.fuente_explicacion == "reglas":  # cabe la línea de respaldo: hora y cierre en una
+                lineas[-2:] = [f"{lineas[-2]} · {CIERRE_INCIDENTE}"]
+        if incidente.fuente_explicacion == "reglas":  # el operador debe ver que no hubo LLM y por qué
+            asunto += SUFIJO_RESPALDO
+            lineas.insert(0, f"Explicación de respaldo por reglas: {incidente.motivo_respaldo_legible}. Revisar en el panel.")
     return PayloadC3(
         tipo=tipo,
         incidente_id=incidente.id,

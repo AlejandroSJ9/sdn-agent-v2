@@ -81,7 +81,7 @@ class Incidente(Base):
     accion_final: Mapped[str | None] = mapped_column(String(30))  # ninguna | <acción> | recomendada | fallida (+ _simulada)
     # Fase 6.8a+b: dictamen determinista e informe auditable. "veredicto" es el veredicto FINAL.
     informe: Mapped[dict | None] = mapped_column(JSON)
-    veredicto_llm: Mapped[str | None] = mapped_column(String(20))  # del LLM (o de las reglas si hubo respaldo)
+    veredicto_llm: Mapped[str | None] = mapped_column(String(20))  # del LLM; None si hubo respaldo por reglas
     dictamen_historial: Mapped[str | None] = mapped_column(String(20))  # agravante | atenuante | null
 
 

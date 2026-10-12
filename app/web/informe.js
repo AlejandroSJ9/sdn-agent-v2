@@ -76,7 +76,8 @@ function razonamiento(r, t) {
   const confianza = r.confianza_modelo.valor;
   return tarjeta(
     "3 · Razonamiento",
-    el("p", {}, "Veredicto del LLM: ", badgeVeredicto(t.veredicto_llm), " → final: ", badgeVeredicto(t.veredicto_final),
+    el("p", {}, ...(t.fuente_explicacion === "reglas" ? ["Sin LLM (respaldo por reglas)"] : ["Veredicto del LLM: ", badgeVeredicto(t.veredicto_llm)]),
+      " → final: ", badgeVeredicto(t.veredicto_final),
       d.tipo ? [" · dictamen ", badge(d.tipo, d.tipo === "agravante" ? "critica" : "ok"), ` ${d.motivo}`] : " · sin dictamen de historial"),
     el("h3", {}, "Factores ponderados"),
     el("ul", { class: "factores" }, r.factores_ponderados.map(factor)),
@@ -118,7 +119,7 @@ function trazabilidad(t, i, extras) {
   return tarjeta(
     "4 · Trazabilidad y acción",
     dl([["Incidente", mono(`#${t.incidente_id}`)], ["Hash de auditoría", el("span", { class: "mono hash" }, t.hash_auditoria_explicacion ?? "—")],
-      ["Modelo", mono(t.modelo)], ["Fuente", t.fuente_explicacion], ["Versión del prompt", mono(t.version_prompt)], ["Variante", t.variante],
+      ["Modelo", t.fuente_explicacion === "reglas" ? `no usado (respaldo por reglas: ${i.motivo_respaldo_legible})` : mono(t.modelo)], ["Fuente", t.fuente_explicacion], ["Versión del prompt", mono(t.version_prompt)], ["Variante", t.variante],
       ["Acción propuesta", [mono(t.accion_propuesta), ` (origen: ${t.origen_accion}, confianza ${t.confianza_accion.toFixed(2)})`]],
       ["Decisión de la política", [mono(t.decision_politica.resultado ?? "—"), t.decision_politica.motivos.length ? ` · ${t.decision_politica.motivos.join(" · ")}` : ""]],
       ["Acción final", mono(t.accion_final ?? "—")], ["Reversible", t.reversible ? "sí" : "no"]]),

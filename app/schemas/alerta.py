@@ -14,6 +14,7 @@ from pydantic import (
     NonNegativeInt,
     PrivateAttr,
     ValidationError,
+    computed_field,
     model_validator,
 )
 
@@ -148,6 +149,25 @@ class AlertaRespuesta(BaseModel):
     acciones_ryu: list[Literal["mantener_bloqueo"]] = ["mantener_bloqueo"]
 
 
+# Texto legible de cada motivo de respaldo por reglas. Único mapeo: lo usan el panel (vía API) y el correo.
+MOTIVOS_RESPALDO = {
+    "timeout": "el modelo no respondió a tiempo",
+    "sin_cupo": "se agotó el cupo diario del LLM",
+    "json_invalido": "el modelo devolvió una respuesta que no es JSON",
+    "schema_invalido": "la respuesta del modelo no cumple el formato esperado",
+    "error_llm": "error del servicio del LLM",
+    "llm_deshabilitado": "el LLM está deshabilitado desde el panel",
+    "sin_api_key": "no hay clave de API del LLM configurada",
+    "error_interno": "error interno del agente al consultar el LLM",
+    "laboratorio_sin_llm": "corrida de laboratorio sin LLM",
+}
+MOTIVO_NO_REGISTRADO = "motivo no registrado"
+
+
+def motivo_legible(motivo: str | None) -> str:
+    return MOTIVOS_RESPALDO.get(motivo or "", MOTIVO_NO_REGISTRADO)
+
+
 class IncidenteSalida(BaseModel):
     """Incidente tal como lo ve el operador. contador_alertas = alertas agrupadas en él."""
 
@@ -163,6 +183,7 @@ class IncidenteSalida(BaseModel):
     evidencias: list[str] | None
     recomendacion_operador: str | None
     fuente_explicacion: str | None
+    motivo_respaldo: str | None = None  # null si la fuente es "llm"
     t_ryu: FechaUTC | None
     t_recibido: FechaUTC
     t_explicado: FechaUTC | None
@@ -189,3 +210,9 @@ class IncidenteSalida(BaseModel):
     informe: dict[str, Any] | None = None
     veredicto_llm: str | None = None
     dictamen_historial: str | None = None
+
+    @computed_field
+    @property
+    def motivo_respaldo_legible(self) -> str | None:
+        """Motivo del respaldo en texto para el operador; null si la explicación no fue por reglas."""
+        return motivo_legible(self.motivo_respaldo) if self.fuente_explicacion == "reglas" else None

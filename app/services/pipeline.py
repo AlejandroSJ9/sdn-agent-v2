@@ -134,9 +134,9 @@ def procesar(incidente_id: int, cliente: ClienteLLM | None = None) -> None:
         fuente = "llm" if motivo is None else "reglas"
 
         # veredicto final y coherencia de acción (el código decide lo concluyente)
-        veredicto_llm = salida.veredicto
-        veredicto_final = dictamen["veredicto"] or veredicto_llm
-        if veredicto_final != veredicto_llm:
+        veredicto_llm = salida.veredicto if fuente == "llm" else None  # en un respaldo el LLM no emitió veredicto
+        veredicto_final = dictamen["veredicto"] or salida.veredicto
+        if veredicto_final != salida.veredicto:  # solo si el dictamen cambió el veredicto de la salida
             auditoria.registrar("dictamen_aplicado", {"incidente_id": incidente_id, "tipo": dictamen["tipo"],
                                                       "veredicto_llm": veredicto_llm, "veredicto_final": veredicto_final})
         tecnica = informe.normalizar_tecnica(salida.tecnica_id)
@@ -182,8 +182,10 @@ def procesar(incidente_id: int, cliente: ClienteLLM | None = None) -> None:
             "incidente_id": incidente_id, "hash_auditoria_explicacion": hash_explicacion,
             "t_ryu": incidente["t_ryu"].isoformat().replace("+00:00", "Z") if incidente["t_ryu"] else None,
             "t_explicado": t_explicado.isoformat().replace("+00:00", "Z"),
-            # el modelo de la llamada real; sin llamada (LLM apagado o respaldo), el configurado (LLM_MODELO)
-            "modelo": (respuesta.modelo if respuesta and respuesta.modelo else None) or get_settings().LLM_MODELO,
+            # el modelo de la llamada real; en un respaldo no se usó ninguno: el configurado queda para la auditoría
+            "modelo": ((respuesta.modelo if respuesta and respuesta.modelo else None) or get_settings().LLM_MODELO)
+            if fuente == "llm" else None,
+            "modelo_configurado": get_settings().LLM_MODELO if fuente == "reglas" else None,
             "fuente_explicacion": fuente, "version_prompt": VERSIONES[variante], "variante": variante,
             "veredicto_llm": veredicto_llm, "veredicto_final": veredicto_final, "accion_propuesta": accion["accion"],
             "origen_accion": accion["origen"], "confianza_accion": accion["confianza"],

@@ -174,4 +174,6 @@ def test_sin_llamada_el_informe_registra_el_modelo_configurado(cliente, bd_tempo
     monkeypatch.setenv("LLM_MODELO", "proveedor/modelo-y")  # LLM apagado (bd_temporal): respaldo por reglas
     get_settings.cache_clear()
     i = _alerta(cliente, cabecera_agente, payload_c1)
-    assert (i.fuente_explicacion, i.informe["trazabilidad_y_accion"]["modelo"]) == ("reglas", "proveedor/modelo-y")
+    t = i.informe["trazabilidad_y_accion"]
+    # QA F6: no se usó modelo; el configurado queda solo para la auditoría
+    assert (i.fuente_explicacion, t["modelo"], t["modelo_configurado"]) == ("reglas", None, "proveedor/modelo-y")

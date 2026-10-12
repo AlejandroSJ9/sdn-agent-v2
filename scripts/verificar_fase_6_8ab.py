@@ -214,8 +214,12 @@ def verificar_informe(caso, inc, payload, con_llm):
     check(G, "incidente_id coincide", tr.get("incidente_id") == inc.get("id"), f"{tr.get('incidente_id')} vs {inc.get('id')}")
     check(G, "hash de auditoría presente", bool(tr.get("hash_auditoria_explicacion") or tr.get("hash_auditoria")), "")
     check(G, "marcas de tiempo ISO-8601", all(re.match(r"\d{4}-\d{2}-\d{2}T", str(tr.get(k, ""))) for k in ("t_ryu", "t_explicado")), "")
-    if con_llm and MODELO:
+    if MODELO and tr.get("fuente_explicacion") == "llm":
         check(G, "modelo = LLM_MODELO vigente", tr.get("modelo") == MODELO, f"{tr.get('modelo')} vs {MODELO}")
+    elif MODELO:  # respaldo por reglas: no se usó modelo; el configurado queda para la auditoría
+        check(G, "respaldo: modelo nulo y modelo_configurado = LLM_MODELO",
+              tr.get("modelo") is None and tr.get("modelo_configurado") == MODELO,
+              f"{tr.get('modelo')} / {tr.get('modelo_configurado')} vs {MODELO}")
     check(G, "veredicto final del informe = columna veredicto", tr.get("veredicto_final") == inc.get("veredicto"),
           f"{tr.get('veredicto_final')} vs {inc.get('veredicto')}")
     check(G, "acción reversible declarada", tr.get("reversible") is True, str(tr.get("reversible")))
@@ -259,8 +263,12 @@ def main():
         check("A", "variante con_contexto", inc.get("variante") == "con_contexto", inc.get("variante"))
         check("A", "versión de prompt v3.1", str(inc.get("version_prompt", "")).startswith("v3.1"), inc.get("version_prompt"))
         check("A", "sin dictamen", not inc.get("dictamen_historial"), inc.get("dictamen_historial"))
-        check("A", "veredicto final = veredicto LLM", inc.get("veredicto") == inc.get("veredicto_llm"),
-              f"{inc.get('veredicto')} vs {inc.get('veredicto_llm')}")
+        if inc.get("fuente_explicacion") == "llm":
+            check("A", "veredicto final = veredicto LLM", inc.get("veredicto") == inc.get("veredicto_llm"),
+                  f"{inc.get('veredicto')} vs {inc.get('veredicto_llm')}")
+        else:  # respaldo por reglas: el LLM no emitió veredicto
+            check("A", "respaldo: sin veredicto del LLM", inc.get("veredicto_llm") is None and bool(inc.get("veredicto")),
+                  f"{inc.get('veredicto_llm')} / final {inc.get('veredicto')}")
         verificar_informe("A", inc, p, con_llm)
 
         # ---------- B. Atenuante: 2 FP del operador con mismos umbrales

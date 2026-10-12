@@ -97,7 +97,11 @@ function resumenCorrida(r) {
   ];
   if (r.xai) {
     const d = r.xai.dictamenes;
-    lineas.push(`Veredicto del LLM (antes del dictamen): ${textoExactitud(r.xai.exactitud_veredicto_llm)} · dictámenes: ${d.agravante} agravante, ${d.atenuante} atenuante · informes con posible alucinación: ${r.xai.posible_alucinacion}`);
+    // los respaldos por reglas no cuentan como acierto ni fallo del LLM (resúmenes antiguos no traen estos campos)
+    const sinLlm = r.xai.sin_veredicto_llm === undefined ? "" : ` · ${r.xai.sin_veredicto_llm} sin veredicto del LLM`;
+    const cob = r.xai.cobertura_llm;
+    const cobertura = cob ? ` · cobertura del LLM: ${cob.llm}/${cob.total} (${cob.porcentaje ?? "—"} %)` : "";
+    lineas.push(`Veredicto del LLM (antes del dictamen): ${textoExactitud(r.xai.exactitud_veredicto_llm)}${sinLlm}${cobertura} · dictámenes: ${d.agravante} agravante, ${d.atenuante} atenuante · informes con posible alucinación: ${r.xai.posible_alucinacion}`);
   }
   if (r.estabilidad) {
     const estables = Object.entries(r.estabilidad).map(([caso, s]) => `${caso} ${s.coinciden}/${s.de}`);

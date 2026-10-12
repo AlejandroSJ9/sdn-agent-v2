@@ -127,10 +127,12 @@ def lineas(informe: dict, severidad: str | None) -> list[str]:
     dictamen = razon["dictamen_historial"]
     detalle_dictamen = f" · dictamen {dictamen['tipo']}" if dictamen["tipo"] else ""
     verificacion = "verificado" if razon["verificacion"]["resultado"] == "verificado" else "posible alucinación"
+    # en un respaldo no hubo LLM: no se atribuye un veredicto al modelo
+    origen = "sin LLM: respaldo por reglas" if traza["fuente_explicacion"] == "reglas" else f"LLM: {traza['veredicto_llm']}"
     return [
         f"Evidencia: {evidencia['host_origen']} supera {_supera(informe)} · solidez {razon['solidez_evidencia']['valor']:.2f}",
         f"MITRE: {mitre['tecnica_id']} {mitre['nombre']} ({mitre['tactica'].split(' (')[0]}) · {mitre['hipotesis_fase'][:140]}",
-        f"Razonamiento: veredicto final {traza['veredicto_final']} (LLM: {traza['veredicto_llm']}{detalle_dictamen}) · "
+        f"Razonamiento: veredicto final {traza['veredicto_final']} ({origen}{detalle_dictamen}) · "
         f"confianza declarada {razon['confianza_modelo']['valor']:.2f} · {verificacion}",
         f"Acción: {_texto_accion(traza['accion_final'], traza['accion_propuesta'])}",
     ]

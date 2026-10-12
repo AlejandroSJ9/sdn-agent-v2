@@ -23,6 +23,18 @@ function estadoBloqueo(i, bloqueados) {
   return bloqueados.some((h) => h.ip === i.host_origen) ? badge("BLOQUEADO", "critica") : badge("sin bloqueo en Ryu", "ok");
 }
 
+// Aviso de la fuente de la explicación: el respaldo por reglas debe verse con su motivo (texto del backend).
+function avisoFuente(i) {
+  if (i.fuente_explicacion === "reglas") {
+    return el("p", { class: "aviso-franja" }, `Explicación generada por reglas (respaldo): ${i.motivo_respaldo_legible}`);
+  }
+  if (i.fuente_explicacion === "llm") {
+    const modelo = i.informe?.trazabilidad_y_accion?.modelo;
+    return el("p", { class: "secundario" }, `Explicación generada por LLM${modelo ? ` (${modelo})` : ""}`);
+  }
+  return null;
+}
+
 function cabecera(i, bloqueados) {
   const bloqueado = bloqueados !== null && bloqueados.some((h) => h.ip === i.host_origen);
   const confianza = i.confianza === null || i.confianza === undefined ? "—" : i.confianza.toFixed(2);
@@ -40,13 +52,14 @@ function cabecera(i, bloqueados) {
       campo("Acción", mono(i.accion_propuesta ?? "—"), " → ", mono(i.accion_final ?? "—")),
       campo("Confianza", mono(confianza)),
       campo("Bloqueo", estadoBloqueo(i, bloqueados)),
-      campo("Switch", mono(i.dpid_switch ?? "—"))));
+      campo("Switch", mono(i.dpid_switch ?? "—"))),
+    avisoFuente(i));
 }
 
 function resumen(i) {
   const fuente = i.fuente_explicacion ? `Explicación por ${i.fuente_explicacion === "llm" ? "LLM" : "reglas"}` : "Aún sin explicación";
   return el("section", { class: "panel tarjeta destacada" },
-    el("h2", {}, "Resumen ", el("small", {}, `· ${fuente}${i.motivo_respaldo ? ` (respaldo: ${i.motivo_respaldo})` : ""}`)),
+    el("h2", {}, "Resumen ", el("small", {}, `· ${fuente}`)),
     el("p", { class: "texto-largo" }, i.explicacion ?? "Aún sin explicación."),
     el("h3", {}, "Recomendación al operador"),
     el("p", { class: "texto-largo" }, i.recomendacion_operador ?? "—"));

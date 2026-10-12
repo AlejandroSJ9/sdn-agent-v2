@@ -61,6 +61,14 @@ export async function refrescarResumen() {
   }
 }
 
+function fuente(i) {
+  if (i.fuente_explicacion === "llm") return badge("LLM", "etiqueta");
+  if (i.fuente_explicacion !== "reglas") return badge("—", "info");
+  const marca = badge("Reglas", "etiqueta");
+  marca.title = `Respaldo por reglas: ${i.motivo_respaldo_legible}`;
+  return marca;
+}
+
 function puntaje(i) {
   const e = i.informe?.evidencia_objetiva;
   if (!e) return "—";
@@ -82,9 +90,10 @@ export async function refrescarActividad() {
         el("td", {}, mono(i.host_origen), " ", el("small", {}, enlace(i.id))),
         el("td", { class: "mono" }, puntaje(i)),
         el("td", {}, badgeVeredicto(i.veredicto)),
+        el("td", {}, fuente(i)),
         el("td", {}, badgeDictamen(i.dictamen_historial)),
         el("td", { class: "mono" }, i.accion_final ?? i.accion_propuesta ?? "—")));
-    vaciar(contenedor, tabla(["Hora", "Host", "Puntaje · umbrales", "Veredicto", "Dictamen", "Acción"], filas));
+    vaciar(contenedor, tabla(["Hora", "Host", "Puntaje · umbrales", "Veredicto", "Fuente", "Dictamen", "Acción"], filas));
   } catch (error) {
     vaciar(contenedor, el("p", { class: "mensaje error" }, `No se pudo leer la actividad: ${error.message}`));
   }

@@ -56,13 +56,14 @@ def test_incidente():
     payload = construir_payload(_incidente(), "incidente")
 
     _valida_c3(payload)
-    assert payload.asunto == "[SDN] Host 10.0.0.3 aislado por posible movimiento lateral"
+    assert payload.asunto == "[SDN] Host 10.0.0.3 aislado por posible movimiento lateral [respaldo por reglas]"
     assert payload.mensaje == (
+        "Explicación de respaldo por reglas: motivo no registrado. Revisar en el panel.\n"  # QA F6
         "Veredicto: confirmado | Severidad: critica | Técnica MITRE: T1021.002\n"
         f"Explicación: {EXPLICACION_REGLAS}\n"
         "Alertas agrupadas: 1 | Fuente de la explicación: reglas | Contexto: no utilizado\n"  # Fase 6.7
         "Acción: se mantiene el bloqueo total\n"  # Fase 6.8 (C3: máximo 6 líneas)
-        "Hora de detección (UTC): 2026-10-10T20:31:05Z\n"
+        "Hora de detección (UTC): 2026-10-10T20:31:05Z · "  # QA F6: unida al cierre para no pasar de 6 líneas
         "Ryu-IA mantiene el host bloqueado; solo el operador puede desbloquearlo desde el panel."
     )
     assert payload.enlace_panel == "http://panel.test:8081/#/incidentes/17"
