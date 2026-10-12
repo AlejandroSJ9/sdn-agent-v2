@@ -5,3 +5,4 @@ __pycache__/
 venv/
 *.db-wal
 *.db-shm
+resultado_pruebas.log
