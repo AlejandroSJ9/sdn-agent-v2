@@ -102,6 +102,15 @@ def resumen_panel(desde: datetime) -> dict[str, Any]:
         }
 
 
+def tiempos_reales_desde(desde: datetime) -> list[dict[str, Any]]:
+    """Recibido, Ryu, explicado y veredicto de los incidentes REALES desde `desde` (agregados del tablero)."""
+    consulta = select(Incidente.t_recibido, Incidente.t_ryu, Incidente.t_explicado, Incidente.veredicto).where(
+        Incidente.origen == "real", Incidente.sembrado.is_(False), Incidente.t_recibido >= desde
+    )
+    with SesionLocal() as sesion:
+        return [dict(fila) for fila in sesion.execute(consulta).mappings()]
+
+
 def incidentes_reales_sin_explicar() -> list[int]:
     """Nunca incluye sembrados: se crean sin explicar a propósito y no deben ir al pipeline."""
     consulta = select(Incidente.id).where(

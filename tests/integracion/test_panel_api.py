@@ -32,9 +32,18 @@ def test_auditoria_reciente_orden_y_limite(cliente, cabecera_agente, cabecera_op
     assert cliente.get("/api/auditoria?limite=201", headers=cabecera_operador).status_code == 422
 
 
+CAMPOS_PREVIOS = ("incidentes_abiertos", "incidentes_hoy", "notificaciones_fallidas_hoy", "ultimo_incidente_id")
+
+
 def test_resumen(cliente, bd_temporal, cabecera_agente, cabecera_operador, payload_c1, monkeypatch):
     vacio = cliente.get("/api/resumen", headers=cabecera_operador).json()
-    assert vacio == {"incidentes_abiertos": 0, "incidentes_hoy": 0, "notificaciones_fallidas_hoy": 0, "ultimo_incidente_id": None}
+    assert {k: vacio[k] for k in CAMPOS_PREVIOS} == {"incidentes_abiertos": 0, "incidentes_hoy": 0,
+                                                     "notificaciones_fallidas_hoy": 0, "ultimo_incidente_id": None}
+    assert vacio["veredictos_hoy"] == {"confirmado": 0, "indeterminado": 0, "falso_positivo": 0}
+    assert vacio["tiempo_medio_explicacion_ms"] is None and vacio["recomendaciones_pendientes"] == 0
+    assert len(vacio["incidentes_por_hora"]) == 24 and sum(h["cantidad"] for h in vacio["incidentes_por_hora"]) == 0
+    assert vacio["llm"] == {"habilitado": get_settings().LLM_HABILITADO, "modelo": "modelo-de-prueba", "usadas": 0,
+                            "cupo": get_settings().LLM_CUPO_DIARIO}
 
     monkeypatch.setenv("APPSCRIPT_URL", "https://script.google.com/macros/s/FALSO/exec")
     get_settings.cache_clear()
@@ -46,12 +55,16 @@ def test_resumen(cliente, bd_temporal, cabecera_agente, cabecera_operador, paylo
         sesion.get(Incidente, primero).t_desbloqueado = datetime.now(timezone.utc)
         sesion.commit()
 
-    assert cliente.get("/api/resumen", headers=cabecera_operador).json() == {
+    lleno = cliente.get("/api/resumen", headers=cabecera_operador).json()
+    assert {k: lleno[k] for k in CAMPOS_PREVIOS} == {
         "incidentes_abiertos": 1,
         "incidentes_hoy": 2,
         "notificaciones_fallidas_hoy": 2,
         "ultimo_incidente_id": segundo,
     }
+    assert sum(lleno["veredictos_hoy"].values()) == 2  # ambos se explicaron (por reglas, sin LLM)
+    assert lleno["incidentes_por_hora"][-1]["cantidad"] == 2  # la última franja es la hora actual
+    assert isinstance(lleno["tiempo_medio_explicacion_ms"], int)
 
 
 @pytest.mark.parametrize("ruta", ["/api/auditoria", "/api/resumen"])

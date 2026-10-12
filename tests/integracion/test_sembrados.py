@@ -111,8 +111,11 @@ def test_sembrados_invisibles_salvo_como_contexto(cliente, bd_temporal, cabecera
         exportado = cliente.get(f"/api/export/incidentes.csv?origen={origen}", headers=cabecera_operador).text
         assert not ids_sembrados & {int(f["id"]) for f in csv.DictReader(io.StringIO(exportado))}
     resumen = cliente.get("/api/resumen", headers=cabecera_operador).json()
-    assert resumen == {"incidentes_abiertos": 0, "incidentes_hoy": 0, "notificaciones_fallidas_hoy": 0,
-                       "ultimo_incidente_id": None}
+    previos = ("incidentes_abiertos", "incidentes_hoy", "notificaciones_fallidas_hoy", "ultimo_incidente_id")
+    assert {k: resumen[k] for k in previos} == {"incidentes_abiertos": 0, "incidentes_hoy": 0,
+                                                "notificaciones_fallidas_hoy": 0, "ultimo_incidente_id": None}
+    assert sum(resumen["veredictos_hoy"].values()) == 0  # los agregados del tablero tampoco los cuentan
+    assert sum(h["cantidad"] for h in resumen["incidentes_por_hora"]) == 0
     caso = corrida["resultados"][0]["incidente_id"]
     detalle = cliente.get(f"/api/incidentes/{caso}", headers=cabecera_operador).json()
     assert detalle["contexto_usado"]["resumen"]["total_previos"] == 3  # visibles solo aquí

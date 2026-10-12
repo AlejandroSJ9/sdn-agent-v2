@@ -2,14 +2,15 @@
 
 import threading
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from app.config import get_settings
 from app.db import repository, repository_acciones, repository_operador
 from app.schemas.alerta import AlertaEntrada
 from app.schemas.laboratorio import AmbitoPrueba
 from app.schemas.notificacion import IncidenteDetalle
-from app.services import auditoria, configuracion, eventos, pipeline
+from app.services import auditoria, configuracion, eventos, pipeline, presupuesto
 
 # Buscar-o-crear debe ser atómico: sin el lock, dos alertas simultáneas del mismo host abrirían
 # dos incidentes (y dos llamadas al LLM). Basta porque el agente corre en un solo proceso.
@@ -101,7 +102,39 @@ def obtener_incidente(incidente_id: int) -> IncidenteDetalle | None:
     )
 
 
+VEREDICTOS = ("confirmado", "indeterminado", "falso_positivo")
+
+
+def agregados_tablero(filas: list[dict], hoy: datetime, inicio_24h: datetime) -> dict[str, Any]:
+    """Veredictos y tiempo medio t_ryu→t_explicado de hoy, e incidentes por hora (24 franjas desde inicio_24h)."""
+    de_hoy = [f for f in filas if f["t_recibido"] >= hoy]
+    duraciones = [(f["t_explicado"] - f["t_ryu"]).total_seconds() * 1000
+                  for f in de_hoy if f["t_ryu"] and f["t_explicado"]]
+    por_hora = [0] * 24
+    for f in filas:
+        if f["t_recibido"] >= inicio_24h:
+            por_hora[min(int((f["t_recibido"] - inicio_24h).total_seconds() // 3600), 23)] += 1
+    return {
+        "veredictos_hoy": {v: sum(f["veredicto"] == v for f in de_hoy) for v in VEREDICTOS},
+        "tiempo_medio_explicacion_ms": round(sum(duraciones) / len(duraciones)) if duraciones else None,
+        "incidentes_por_hora": [
+            {"hora": (inicio_24h + timedelta(hours=i)).isoformat().replace("+00:00", "Z"), "cantidad": n}
+            for i, n in enumerate(por_hora)
+        ],
+    }
+
+
 def resumen() -> dict:
-    """Números de las tarjetas del panel. "Hoy" = día UTC actual."""
-    hoy = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-    return repository_operador.resumen_panel(hoy)
+    """Números de las tarjetas del panel y agregados del tablero (solo lectura). "Hoy" = día UTC actual."""
+    ahora = datetime.now(timezone.utc)
+    hoy = ahora.replace(hour=0, minute=0, second=0, microsecond=0)
+    inicio_24h = ahora.replace(minute=0, second=0, microsecond=0) - timedelta(hours=23)
+    filas = repository_operador.tiempos_reales_desde(min(hoy, inicio_24h))
+    cupo = presupuesto.estado_cupo()
+    return {
+        **repository_operador.resumen_panel(hoy),
+        **agregados_tablero(filas, hoy, inicio_24h),
+        "recomendaciones_pendientes": repository_acciones.contar_pendientes(),
+        "llm": {"habilitado": configuracion.obtener()["LLM_HABILITADO"], "modelo": get_settings().LLM_MODELO,
+                "usadas": cupo["usadas"], "cupo": cupo["cupo"]},
+    }
