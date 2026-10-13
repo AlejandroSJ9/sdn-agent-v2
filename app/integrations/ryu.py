@@ -30,6 +30,13 @@ class HostNoBloqueado(RyuError):
     """Ryu respondió 404 al desbloquear: el host no estaba bloqueado."""
 
 
+API_NO_DISPONIBLE = "api_no_disponible (falta A5)"
+
+
+class ApiNoDisponible(RyuError):
+    """Ryu responde pero sus rutas /ryu/* dan 404: no tiene la API REST (A5)."""
+
+
 class UmbralesNoValidos(ValueError):
     """Cambio de umbrales que Ryu rechazaría (clave desconocida o valor que no es entero > 0). No se envía."""
 
@@ -88,9 +95,16 @@ class ClienteRyu:
         try:
             return self._pedir("POST", f"/ryu/hosts/{ip}/desbloquear")
         except RyuError as error:
+            if error.codigo != 404:
+                raise
+        # Un 404 solo significa "no bloqueado" si la API existe; si /bloqueados también da 404, falta A5.
+        try:
+            self.bloqueados()
+        except RyuError as error:
             if error.codigo == 404:
-                raise HostNoBloqueado(404, "host_no_bloqueado") from error
+                raise ApiNoDisponible(404, API_NO_DISPONIBLE) from error
             raise
+        raise HostNoBloqueado(404, "host_no_bloqueado")
 
     # A6 (C2): solo services/acciones.py puede llamarlas (tests/unit/test_unico_camino_desbloqueo.py).
     def cuarentena(self, ip: str) -> dict:

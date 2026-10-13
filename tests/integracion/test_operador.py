@@ -93,7 +93,7 @@ def test_ryu_caido_502_y_la_bd_no_cambia(cliente, bd_temporal, cabecera_agente, 
     with Session(bd_temporal) as sesion:
         assert sesion.get(Incidente, incidente_id).t_desbloqueado is None
         assert sesion.scalars(select(Notificacion).where(Notificacion.tipo == "desbloqueo")).all() == []
-    assert _eventos(bd_temporal) == eventos_antes
+    assert _eventos(bd_temporal) == eventos_antes + ["desbloqueo_fallido"]  # QA F1: el intento fallido se audita
     estado = cliente.get("/api/ryu/estado", headers=cabecera_operador)
     assert estado.status_code == 200 and estado.json()["disponible"] is False
 

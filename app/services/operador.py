@@ -10,7 +10,7 @@ from typing import Any
 
 from app.config import get_settings
 from app.db import repository_operador
-from app.integrations.ryu import ClienteRyu, HostNoBloqueado, RyuError, RyuNoDisponible, UmbralesNoValidos
+from app.integrations.ryu import API_NO_DISPONIBLE, ClienteRyu, HostNoBloqueado, RyuError, RyuNoDisponible, UmbralesNoValidos
 from app.services import auditoria, eventos, notificacion
 
 __all__ = ["ConfirmacionInvalida", "UmbralesInvalidos", "HostNoBloqueado", "RyuError", "RyuNoDisponible"]
@@ -36,7 +36,7 @@ def estado_ryu() -> dict[str, Any]:
         cliente = obtener_cliente_ryu()
         return {"disponible": True, **cliente.estado(), "capacidades": cliente.capacidades()}
     except RyuError as error:
-        return {"disponible": False, "error": str(error)}
+        return {"disponible": False, "error": API_NO_DISPONIBLE if error.codigo == 404 else str(error)}
 
 
 def bloqueados_enriquecidos() -> list[dict[str, Any]]:
@@ -58,7 +58,12 @@ def desbloquear_host(
     if not 5 <= len(motivo) <= 200:
         raise ValueError("El motivo debe tener entre 5 y 200 caracteres")
 
-    respuesta = obtener_cliente_ryu().desbloquear(ip)  # si Ryu falla, se propaga y la BD no se toca
+    try:
+        respuesta = obtener_cliente_ryu().desbloquear(ip)
+    except RyuError as error:  # se audita el intento y se propaga: los incidentes no se tocan
+        datos = {"ip": ip, "motivo": motivo, "clasificacion": clasificacion, "codigo": error.codigo, "error": str(error)}
+        auditoria.registrar("desbloqueo_fallido", datos)
+        raise
 
     ts = datetime.now(timezone.utc)
     incidentes = repository_operador.incidentes_abiertos_de(ip)

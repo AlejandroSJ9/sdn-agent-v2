@@ -15,6 +15,8 @@ router = APIRouter(prefix="/api", dependencies=[Depends(verificar_token_operador
 def _error_ryu(error: operador.RyuError) -> HTTPException:
     if isinstance(error, operador.HostNoBloqueado):
         return HTTPException(status.HTTP_404_NOT_FOUND, "El host no está bloqueado en Ryu")
+    if error.codigo == 404:  # la ruta /ryu/* no existe: Ryu sin A5
+        return HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Ryu no expone la API REST (A5)")
     if isinstance(error, operador.RyuNoDisponible):
         return HTTPException(status.HTTP_502_BAD_GATEWAY, f"Ryu no responde ({error})")
     return HTTPException(status.HTTP_502_BAD_GATEWAY, f"Ryu respondió con error ({error})")

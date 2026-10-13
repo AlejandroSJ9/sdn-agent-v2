@@ -8,7 +8,9 @@ import pytest
 from conftest import TOKEN_AGENTE, transporte_asgi
 
 from app.integrations import ryu as ryu_modulo
-from app.integrations.ryu import ClienteRyu, HostNoBloqueado, RyuError, RyuNoDisponible, UmbralesNoValidos
+from app.integrations.ryu import (
+    ApiNoDisponible, ClienteRyu, HostNoBloqueado, RyuError, RyuNoDisponible, UmbralesNoValidos,
+)
 
 
 @pytest.fixture
@@ -128,3 +130,19 @@ def test_umbrales_invalidos_no_se_envian(cambios):
     with pytest.raises(UmbralesNoValidos):
         cliente.actualizar_umbrales(cambios)
     assert rutas == []
+
+
+def test_desbloquear_sin_api_a5_no_es_host_no_bloqueado():
+    """QA F1: si /bloqueados también da 404, la ruta no existe (falta A5), no "host no bloqueado"."""
+    with pytest.raises(ApiNoDisponible) as error:
+        _cliente_con(lambda peticion: httpx.Response(404)).desbloquear("10.0.0.3")
+    assert error.value.codigo == 404 and str(error.value) == "api_no_disponible (falta A5)"
+
+
+def test_desbloquear_404_con_bloqueados_en_error_propaga_ese_error():
+    def manejar(peticion):
+        return httpx.Response(404 if peticion.url.path.endswith("/desbloquear") else 500)
+
+    with pytest.raises(RyuError) as error:
+        _cliente_con(manejar).desbloquear("10.0.0.3")
+    assert error.value.codigo == 500 and not isinstance(error.value, (HostNoBloqueado, ApiNoDisponible))

@@ -51,13 +51,15 @@ Errores: 401 token inválido · 422 payload inválido · 429 límite de tasa.
 |---|---|---|
 | GET | /ryu/estado | {"switches": ["0x..."], "hosts_bloqueados": n, "umbrales": {...}, "version": "2.0"} |
 | GET | /ryu/hosts/bloqueados | [{"ip", "dpid", "desde", "modo"?}]  (modo solo si existe A6: "drop_total" | "cuarentena") |
-| POST | /ryu/hosts/{ip}/desbloquear | {"ok": true, "ip", "reglas_borradas"} · 404 no bloqueado · 422 ip inválida |
+| POST | /ryu/hosts/{ip}/desbloquear | {"ok": true, "ip", "reglas_borradas"} · 404 no bloqueado · 422 ip inválida · Si la API no existe (404 también en /ryu/hosts/bloqueados), el agente responde 503 'Ryu no expone la API REST (A5)'. |
 | GET | /ryu/umbrales | {"M1","M2","M3_DURACION_S","M3_BYTES","M4","M5","SCORE_SOSPECHOSO","SCORE_CRITICO"} (enteros) |
 | PUT | /ryu/umbrales | cuerpo parcial; 422 si la clave no existe o el valor no es entero > 0 |
 | POST | /ryu/hosts/{ip}/cuarentena | (A6, opcional) {"ok": true, "ip", "modo": "cuarentena"} · 404 si no existe la ruta o el host no está bloqueado |
 | POST | /ryu/hosts/{ip}/bloqueo_total | (A6, opcional) {"ok": true, "ip", "modo": "drop_total"} |
 
 Nota C1: en la alerta real, contexto_topologico es un TEXTO (ej. "VLAN OPS (ID=10), subred 10.0.10.0/24") y las métricas numéricas pueden llegar como decimales (24.0).
+Nota C2: si /ryu/hosts/bloqueados o /ryu/umbrales (GET y PUT) responden 404 (ruta inexistente), el agente responde 503 'Ryu no expone la API REST (A5)' en /api/ryu/bloqueados y /api/ryu/umbrales, y GET /api/ryu/estado informa "api_no_disponible (falta A5)".
+
   
 Encabezado: `X-Agent-Token`.
 

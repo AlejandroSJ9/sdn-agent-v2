@@ -51,7 +51,9 @@ async function refrescarRyu() {
       aviso("ryu", null);
     } else {
       indicador("ind-ryu", "Ryu no disponible", "mal");
-      aviso("ryu", `Ryu no responde (${ryu.error}). Las acciones sobre Ryu fallarán hasta que vuelva.`);
+      aviso("ryu", ryu.error?.startsWith("api_no_disponible")
+        ? `Ryu responde pero no expone la API REST (${ryu.error}). Las acciones sobre Ryu fallarán hasta que se aplique.`
+        : `Ryu no responde (${ryu.error}). Las acciones sobre Ryu fallarán hasta que vuelva.`);
     }
   } catch (error) {
     indicador("ind-ryu", "Ryu: sin datos", "aviso");
