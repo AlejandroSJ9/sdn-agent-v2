@@ -1,4 +1,4 @@
-"""Alertas rechazadas (401, 422, 429) contadas en memoria por motivo. Nunca se escriben en la BD.
+"""Alertas rechazadas (401, 404 de /alert, 413, 422, 429) contadas en memoria por motivo. Nunca se escriben en la BD.
 
 Así un emisor mal configurado o un ataque de saturación no llena la base de datos; el panel solo
 necesita saber cuántas se rechazaron, por qué y cuándo fue la última.

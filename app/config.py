@@ -60,6 +60,7 @@ class Settings(BaseSettings):
     HOSTS_PROTEGIDOS: str = "[]"  # lista JSON de IPv4
     RECOMENDACION_TTL_MIN: int = 60
     RATE_LIMIT_POR_MIN: int = 60
+    ALERTA_MAX_BYTES: int = 65536  # tope del cuerpo de POST /api/alertas (413 si lo supera)
     DB_URL: str = "sqlite:///./sdn_agent.db"
     AUDITORIA_CLAVE: str = ""  # clave del HMAC de la cadena de auditoría
 

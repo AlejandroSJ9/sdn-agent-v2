@@ -43,7 +43,8 @@ HTTP 202
 { "estado": "recibido", "incidente_id": 17, "acciones_ryu": ["mantener_bloqueo"] }
 ```
 
-Errores: 401 token inválido · 422 payload inválido · 429 límite de tasa.
+Errores: 401 token inválido · 413 cuerpo mayor que ALERTA_MAX_BYTES (64 KB por defecto) · 422 payload inválido · 429 límite de tasa.
+Ruta antigua `POST /alert` (Ryu sin A1): 404, contada en /api/alertas/rechazadas como "ruta antigua /alert: falta A1 en Ryu"; no se procesa.
 
 ## C2. Agente → Ryu (API de Ryu-IA, puerto 8080, encabezado X-Agent-Token)
 
@@ -57,9 +58,9 @@ Errores: 401 token inválido · 422 payload inválido · 429 límite de tasa.
 | POST | /ryu/hosts/{ip}/cuarentena | (A6, opcional) {"ok": true, "ip", "modo": "cuarentena"} · 404 si no existe la ruta o el host no está bloqueado |
 | POST | /ryu/hosts/{ip}/bloqueo_total | (A6, opcional) {"ok": true, "ip", "modo": "drop_total"} |
 
-Nota C1: en la alerta real, contexto_topologico es un TEXTO (ej. "VLAN OPS (ID=10), subred 10.0.10.0/24") y las métricas numéricas pueden llegar como decimales (24.0).
 Nota C2: si /ryu/hosts/bloqueados o /ryu/umbrales (GET y PUT) responden 404 (ruta inexistente), el agente responde 503 'Ryu no expone la API REST (A5)' en /api/ryu/bloqueados y /api/ryu/umbrales, y GET /api/ryu/estado informa "api_no_disponible (falta A5)".
 
+Nota C1: en la alerta real, contexto_topologico es un TEXTO (ej. "VLAN OPS (ID=10), subred 10.0.10.0/24") y las métricas numéricas pueden llegar como decimales (24.0).
   
 Encabezado: `X-Agent-Token`.
 

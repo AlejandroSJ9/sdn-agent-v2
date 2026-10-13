@@ -35,6 +35,7 @@ async def ciclo_vida(_app: FastAPI):
 app = FastAPI(title="SDN-Agent v2", version=salud.VERSION, lifespan=ciclo_vida)
 app.include_router(salud.router)
 app.include_router(routes_alertas.router)
+app.include_router(routes_alertas.router_antiguo)
 app.include_router(routes_notificaciones.router)
 app.include_router(routes_operador.router)
 app.include_router(routes_panel.router)

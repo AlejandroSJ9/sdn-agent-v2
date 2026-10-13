@@ -18,6 +18,7 @@ from app.services import alertas, auditoria, rechazadas
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api")
+router_antiguo = APIRouter()  # POST /alert: ruta de Ryu sin A1
 
 
 class LimiteTasa:
@@ -79,8 +80,23 @@ def limitar_tasa(request: Request) -> None:
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Límite de tasa excedido")
 
 
+def _rechazar_413(maximo: int) -> HTTPException:
+    rechazadas.registrar(413, f"cuerpo mayor que {maximo} bytes")
+    return HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, f"Cuerpo de la alerta mayor que {maximo} bytes")
+
+
 async def leer_cuerpo(request: Request) -> bytes:
-    return await request.body()
+    """Lee el cuerpo con tope ALERTA_MAX_BYTES: al superarlo corta la lectura (413) y nada llega a la BD."""
+    maximo = get_settings().ALERTA_MAX_BYTES
+    declarado = request.headers.get("content-length", "")
+    if declarado.isdigit() and int(declarado) > maximo:
+        raise _rechazar_413(maximo)
+    cuerpo = bytearray()
+    async for parte in request.stream():
+        cuerpo += parte
+        if len(cuerpo) > maximo:
+            raise _rechazar_413(maximo)
+    return bytes(cuerpo)
 
 
 def _rechazar_422(errores: list[dict[str, Any]]) -> HTTPException:
@@ -101,7 +117,7 @@ def validar_alerta(crudo: bytes) -> AlertaEntrada:
         raise _rechazar_422(describir_errores(error)) from None
 
 
-# Orden de las dependencias: token (401) → límite de tasa (429); el cuerpo se valida después (422).
+# Orden de las dependencias: token (401) → límite de tasa (429) → tamaño del cuerpo (413) → validación (422).
 @router.post(
     "/alertas",
     status_code=status.HTTP_202_ACCEPTED,
@@ -110,6 +126,13 @@ def validar_alerta(crudo: bytes) -> AlertaEntrada:
 def recibir_alerta(crudo: Annotated[bytes, Depends(leer_cuerpo)], tareas: BackgroundTasks) -> AlertaRespuesta:
     """Responde 202 al instante; el pipeline corre en segundo plano."""
     return AlertaRespuesta(incidente_id=alertas.recibir(validar_alerta(crudo), tareas.add_task))
+
+
+@router_antiguo.post("/alert", status_code=status.HTTP_404_NOT_FOUND, include_in_schema=False)
+def ruta_antigua_alert() -> None:
+    """Ryu sin A1 publica aquí: se cuenta en rechazadas sin leer el cuerpo, sin token y sin cupo de tasa."""
+    rechazadas.registrar(404, "ruta antigua /alert: falta A1 en Ryu")
+    raise HTTPException(status.HTTP_404_NOT_FOUND, "Ruta antigua /alert: falta A1 en Ryu")
 
 
 @router.get("/alertas/rechazadas", dependencies=[Depends(verificar_token_operador)])
