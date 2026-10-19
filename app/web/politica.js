@@ -10,7 +10,8 @@ const MODOS = {
   autonomo_acotado: "Autónomo acotado",
 };
 const CAMPOS = [
-  ["UMBRAL_CONFIANZA", "Umbral de confianza", { type: "number", min: 0.5, max: 1, step: 0.05 }],
+  ["ESCALON_HITL", "Escalón HITL: debajo decide el humano", { type: "number", min: 0.5, max: 1, step: 0.01 }],
+  ["ESCALON_VLAN", "Escalón VLAN: confirmado por encima → cuarentena en VLAN", { type: "number", min: 0.5, max: 1, step: 0.01 }],
   ["MAX_ACCIONES_POR_MIN", "Máx. acciones por minuto", { type: "number", min: 1, max: 20, step: 1 }],
   ["RECOMENDACION_TTL_MIN", "Vigencia de una recomendación (min)", { type: "number", min: 5, max: 1440, step: 1 }],
 ];
@@ -43,12 +44,13 @@ export async function refrescarPolitica() {
     if (campo && document.activeElement !== campo) campo.value = config[clave];
   }
   if (document.activeElement !== $("pol-HOSTS_PROTEGIDOS")) $("pol-HOSTS_PROTEGIDOS").value = config.HOSTS_PROTEGIDOS.join(", ");
-  let conA6 = false;
+  let capacidades = {};
   try {
-    conA6 = Boolean((await api("/api/ryu/estado")).capacidades?.cuarentena);
+    capacidades = (await api("/api/ryu/estado")).capacidades ?? {};
   } catch { /* sin datos de Ryu */ }
-  aviso(modoActual === "autonomo_acotado" && !conA6
-    ? "Modo autónomo acotado activo, pero Ryu no tiene la capacidad A6: sin capacidad, solo recomendaciones."
+  const faltan = [["cuarentena", "A6"], ["limitar_tasa", "A7"], ["cuarentena_vlan", "A8"]].filter(([c]) => !capacidades[c]).map(([, a]) => a);
+  aviso(modoActual === "autonomo_acotado" && faltan.length
+    ? `Modo autónomo acotado activo, pero Ryu no tiene ${faltan.join(", ")}: esas acciones solo quedarán como recomendaciones.`
     : null);
 }
 
@@ -65,7 +67,7 @@ async function guardar(cambios, salida) {
 async function cambiarModo() {
   const nuevo = $("sel-modo").value;
   const advertencia = nuevo === "autonomo_acotado"
-    ? "El agente podrá pasar hosts a cuarentena o volverlos a bloqueo total SIN preguntar (nunca desbloquea)."
+    ? "El agente ejecutará SIN preguntar la acción de la escalera (cuarentena de puertos, limitar tasa o VLAN) si C7 lo permite; si Ryu falla, vuelve a DROP total. Nunca desbloquea."
     : nuevo === "solo_explicar" ? "Se detiene toda acción y recomendación automática al instante." : "Las acciones quedarán como recomendaciones.";
   if (!window.confirm(`¿Cambiar el modo de decisión a "${MODOS[nuevo]}"?\n\n${advertencia}`)) {
     $("sel-modo").value = modoActual;
@@ -87,6 +89,10 @@ function guardarParametros(evento) {
     }
     cambios[clave] = valor;
   }
+  if (cambios.ESCALON_HITL >= cambios.ESCALON_VLAN) {
+    mensaje(salida, "El escalón HITL debe ser menor que el escalón VLAN.", "error");
+    return;
+  }
   const hosts = $("pol-HOSTS_PROTEGIDOS").value.split(/[\s,]+/).filter(Boolean);
   const invalidos = hosts.filter((ip) => !IPV4.test(ip));
   if (invalidos.length) {
@@ -105,7 +111,7 @@ export function iniciarPolitica() {
   vaciar(
     $("config-politica"),
     el("header", { class: "panel-cabecera" }, el("h2", {}, "Decisión acotada (motor de políticas)")),
-    el("p", { class: "ayuda" }, "El modo se cambia en la cabecera. El agente nunca desbloquea; en autónomo solo puede pasar a cuarentena o volver a bloqueo total, si la política lo aprueba."),
+    el("p", { class: "ayuda" }, "El modo se cambia en la cabecera. El agente nunca desbloquea. En autónomo, la escalera relaja el DROP sola si C7 lo permite; el escalón HITL es el único umbral (UMBRAL_CONFIANZA se retiró)."),
     el("form", { id: "form-politica", class: "umbrales", onsubmit: guardarParametros },
       campos,
       el("label", {}, "Hosts protegidos (IPv4 separadas por coma)", el("textarea", { id: "pol-HOSTS_PROTEGIDOS", rows: 2, class: "mono" })),

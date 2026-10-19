@@ -19,9 +19,11 @@ logger = logging.getLogger(__name__)
 CLAVES = (
     "LLM_HABILITADO", "DEDUP_SEGUNDOS", "CONTEXTO_HABILITADO", "HISTORIAL_DIAS", "CAMPANA_MINUTOS",
     "MODO_DECISION", "UMBRAL_CONFIANZA", "MAX_ACCIONES_POR_MIN", "HOSTS_PROTEGIDOS", "RECOMENDACION_TTL_MIN",
+    "ESCALON_HITL", "ESCALON_VLAN",
 )
 _BOOLEANAS = ("LLM_HABILITADO", "CONTEXTO_HABILITADO")
 MODOS_DECISION = ("solo_explicar", "recomendar", "autonomo_acotado")
+ESCALONES = ("ESCALON_HITL", "ESCALON_VLAN")  # C7: 0.50 ≤ HITL < VLAN ≤ 1
 _candado = threading.Lock()  # leer-comparar-guardar-auditar de forma atómica (un solo proceso)
 
 
@@ -48,7 +50,7 @@ def _desde_texto(clave: str, texto: str) -> Any:
         if texto not in MODOS_DECISION:
             raise ValueError(texto)
         return texto
-    if clave == "UMBRAL_CONFIANZA":
+    if clave in ("UMBRAL_CONFIANZA", *ESCALONES):
         return float(texto)
     if clave == "HOSTS_PROTEGIDOS":
         return _hosts(texto)
@@ -87,7 +89,8 @@ def politica() -> dict[str, Any]:
     valores = obtener()
     return {"modo_decision": valores["MODO_DECISION"], "umbral_confianza": valores["UMBRAL_CONFIANZA"],
             "max_acciones_por_min": valores["MAX_ACCIONES_POR_MIN"], "hosts_protegidos": valores["HOSTS_PROTEGIDOS"],
-            "recomendacion_ttl_min": valores["RECOMENDACION_TTL_MIN"]}
+            "recomendacion_ttl_min": valores["RECOMENDACION_TTL_MIN"],
+            "escalon_hitl": valores["ESCALON_HITL"], "escalon_vlan": valores["ESCALON_VLAN"]}
 
 
 def contexto() -> dict[str, Any]:
@@ -97,10 +100,17 @@ def contexto() -> dict[str, Any]:
             "campana_minutos": valores["CAMPANA_MINUTOS"]}
 
 
+class ConfiguracionInvalida(ValueError):
+    """La combinación de valores no es válida (422)."""
+
+
 def actualizar(cambios: dict[str, Any]) -> dict[str, Any]:
     """Guarda solo lo que realmente cambia; cada cambio se audita y se emite como config_cambiada."""
     with _candado:
         anteriores = obtener()
+        hitl, vlan = (cambios.get(c) if cambios.get(c) is not None else anteriores[c] for c in ESCALONES)
+        if not 0.5 <= hitl < vlan <= 1:
+            raise ConfiguracionInvalida(f"Se requiere 0.50 ≤ ESCALON_HITL < ESCALON_VLAN ≤ 1 (HITL={hitl}, VLAN={vlan})")
         for clave, nuevo in cambios.items():
             if nuevo is None or nuevo == anteriores[clave]:
                 continue

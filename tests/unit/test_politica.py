@@ -1,13 +1,15 @@
-"""Motor de políticas (C7): función pura. Una prueba por condición, combinadas y la normalización de C4."""
+"""Motor de políticas (C7, Fase 9b): función pura. Una prueba por condición, combinadas y la regla
+"confirmado nunca limitar_tasa". UMBRAL_CONFIANZA está retirado: la confianza ya no es una condición."""
 
 import pytest
 
 from app.services import politica
-from app.services.politica import Decision, evaluar, normalizar_accion
+from app.services.politica import Decision, evaluar
 
-PROPUESTA = {"accion": "pasar_a_cuarentena", "confianza": 0.9, "veredicto": "indeterminado"}
-INCIDENTE = {"host": "10.0.0.3", "laboratorio": False}
-SISTEMA = {"modo_decision": "autonomo_acotado", "capacidad_a6": True, "umbral_confianza": 0.85,
+PROPUESTA = {"accion": "cuarentena_puertos", "veredicto": "confirmado", "veredicto_salida": "confirmado"}
+INCIDENTE = {"host": "10.0.0.3", "laboratorio": False, "modo_actual": "drop_total"}
+TODAS = {"cuarentena": True, "limitar_tasa": True, "cuarentena_vlan": True}
+SISTEMA = {"modo_decision": "autonomo_acotado", "capacidades": TODAS,
            "hosts_protegidos": [], "acciones_ultimo_minuto": 0, "max_acciones_por_min": 3}
 
 
@@ -15,77 +17,72 @@ def _evaluar(propuesta=None, incidente=None, **sistema) -> Decision:
     return evaluar({**PROPUESTA, **(propuesta or {})}, {**INCIDENTE, **(incidente or {})}, {**SISTEMA, **sistema})
 
 
-def test_todo_se_cumple_ejecuta():
-    assert _evaluar() == Decision("ejecutar", [])
-    assert _evaluar({"accion": "escalar_a_drop", "veredicto": "confirmado"}) == Decision("ejecutar", [])
+BENIGNO = {"accion": "limitar_tasa", "veredicto": "falso_positivo", "veredicto_salida": "falso_positivo"}
+
+
+def test_todo_se_cumple_ejecuta_cada_escalon():
+    for propuesta in ({}, BENIGNO, {"accion": "cuarentena_vlan"}):
+        assert _evaluar(propuesta) == Decision("ejecutar", [])
 
 
 @pytest.mark.parametrize(("cambio", "motivo"), [
     ({"modo_decision": "recomendar"}, politica.MOTIVO_MODO),                      # 1
-    ({"capacidad_a6": False}, politica.MOTIVO_SIN_A6),                            # 2
-    ({"umbral_confianza": 0.95}, politica.MOTIVO_CONFIANZA),                      # 3
-    ({"hosts_protegidos": ["10.0.0.3"]}, politica.MOTIVO_PROTEGIDO),              # 4
-    ({"acciones_ultimo_minuto": 3}, politica.MOTIVO_LIMITE),                      # 5
+    ({"capacidades": {**TODAS, "cuarentena": False}}, politica.MOTIVO_SIN_A6),    # 2
+    ({"hosts_protegidos": ["10.0.0.3"]}, politica.MOTIVO_PROTEGIDO),              # 3
+    ({"acciones_ultimo_minuto": 3}, politica.MOTIVO_LIMITE),                      # 4
 ])
 def test_cada_condicion_del_sistema_por_separado(cambio, motivo):
     assert _evaluar(**cambio) == Decision("recomendar", [motivo])
 
 
-def test_condicion_3_confianza_ausente_o_justo_en_el_umbral():
-    assert _evaluar({"confianza": None}).motivos == [politica.MOTIVO_CONFIANZA]
-    assert _evaluar({"confianza": 0.85}).resultado == "ejecutar"  # ≥ umbral
+def test_condicion_2_la_capacidad_es_por_accion():
+    solo_a6 = {"capacidades": {"cuarentena": True, "limitar_tasa": False, "cuarentena_vlan": False}}
+    assert _evaluar(**solo_a6).resultado == "ejecutar"
+    assert _evaluar(BENIGNO, **solo_a6).motivos == [politica.MOTIVO_SIN_A7]
+    assert _evaluar({"accion": "cuarentena_vlan"}, **solo_a6).motivos == [politica.MOTIVO_SIN_A8]
+    assert _evaluar(capacidades={}).motivos == [politica.MOTIVO_SIN_A6]  # Ryu caído: sin ninguna
 
 
-def test_condicion_6_confirmado_mas_cuarentena_se_descarta_nunca_se_recomienda():
-    # Corrección Fase 6.8: antes quedaba como recomendación; ahora se descarta con su motivo.
+def test_la_confianza_ya_no_es_una_condicion():
+    assert _evaluar({"confianza": 0.70, "umbral_confianza": 0.99}).resultado == "ejecutar"
+
+
+def test_condicion_5_host_que_ya_no_esta_en_drop_total_se_descarta():
+    assert _evaluar(incidente={"modo_actual": "cuarentena"}) == Decision("descartar", [politica.MOTIVO_NO_DROP])
+
+
+def test_confirmado_nunca_limitar_tasa_se_descarta_nunca_se_recomienda():
     for modo in ("recomendar", "autonomo_acotado"):
-        for sistema in ({}, {"umbral_confianza": 0.5}, {"capacidad_a6": False}, {"hosts_protegidos": ["10.0.0.3"]}):
-            decision = _evaluar({"veredicto": "confirmado", "confianza": 1.0}, modo_decision=modo, **sistema)
+        for veredictos in ({"veredicto": "confirmado"}, {"veredicto_salida": "confirmado", "veredicto": "indeterminado"}):
+            decision = _evaluar({"accion": "limitar_tasa", **veredictos}, modo_decision=modo)
             assert decision == Decision("descartar", [politica.MOTIVO_INCOMPATIBLE])
-    assert _evaluar({"veredicto": "confirmado"}, incidente={"laboratorio": True}).resultado == "descartar"
-    assert _evaluar({"veredicto": "falso_positivo"}).resultado == "ejecutar"
-    assert _evaluar({"accion": "escalar_a_drop", "veredicto": "confirmado"}).resultado == "ejecutar"  # solo cuarentena
+    assert _evaluar(BENIGNO).resultado == "ejecutar"
 
 
-def test_condicion_7_laboratorio_ejecuta_simulado_sin_limite_por_minuto():
+def test_laboratorio_sin_limite_por_minuto():
     assert _evaluar(incidente={"laboratorio": True}, acciones_ultimo_minuto=99) == Decision("ejecutar", [])
-    assert _evaluar(incidente={"laboratorio": True}, capacidad_a6=False).motivos == [politica.MOTIVO_SIN_A6]
+    assert _evaluar(incidente={"laboratorio": True}, capacidades={}).motivos == [politica.MOTIVO_SIN_A6]
 
 
 def test_condiciones_combinadas_listan_todos_los_motivos():
-    decision = _evaluar({"veredicto": None, "confianza": 0.2}, modo_decision="recomendar", capacidad_a6=False,
-                        hosts_protegidos=["10.0.0.3"], acciones_ultimo_minuto=5)
+    decision = _evaluar(modo_decision="recomendar", capacidades={}, hosts_protegidos=["10.0.0.3"], acciones_ultimo_minuto=5)
     assert decision.resultado == "recomendar"
-    assert decision.motivos == [politica.MOTIVO_MODO, politica.MOTIVO_SIN_A6, politica.MOTIVO_CONFIANZA,
-                                politica.MOTIVO_PROTEGIDO, politica.MOTIVO_LIMITE, politica.MOTIVO_CONFIRMADO]
+    assert decision.motivos == [politica.MOTIVO_MODO, politica.MOTIVO_SIN_A6, politica.MOTIVO_PROTEGIDO, politica.MOTIVO_LIMITE]
 
 
-def test_mantener_nunca_genera_recomendacion():
+def test_mantener_drop_nunca_genera_recomendacion():
     for modo in ("solo_explicar", "recomendar", "autonomo_acotado"):
-        assert _evaluar({"accion": "mantener"}, modo_decision=modo) == Decision("descartar", [])
+        assert _evaluar({"accion": "mantener_drop"}, modo_decision=modo) == Decision("descartar", [])
 
 
 def test_solo_explicar_ni_ejecuta_ni_recomienda():
-    assert _evaluar(modo_decision="solo_explicar").resultado == "descartar"
-    assert _evaluar({"veredicto": "confirmado"}, modo_decision="solo_explicar").resultado == "descartar"
+    for accion in ("cuarentena_puertos", "cuarentena_vlan"):
+        assert _evaluar({"accion": accion}, modo_decision="solo_explicar").resultado == "descartar"
 
 
-@pytest.mark.parametrize("accion", ["desbloquear", "liberar", "", None])
+@pytest.mark.parametrize("accion", ["desbloquear", "liberar", "escalar_a_drop", "pasar_a_cuarentena", "mantener", "", None])
 def test_accion_fuera_de_la_lista_cerrada_se_descarta(accion):
     assert _evaluar({"accion": accion}).resultado == "descartar"
-
-
-@pytest.mark.parametrize(("accion", "modo", "esperada", "corregida"), [
-    ("pasar_a_cuarentena", "drop_total", "pasar_a_cuarentena", False),
-    ("escalar_a_drop", "drop_total", "mantener", True),
-    ("escalar_a_drop", "cuarentena", "escalar_a_drop", False),
-    ("pasar_a_cuarentena", "cuarentena", "mantener", True),
-    ("mantener", "cuarentena", "mantener", False),
-    ("desbloquear", "drop_total", "mantener", True),
-    (None, "drop_total", "mantener", True),
-])
-def test_accion_invalida_para_el_modo_pasa_a_mantener(accion, modo, esperada, corregida):
-    assert normalizar_accion(accion, modo) == (esperada, corregida)
 
 
 def test_la_politica_es_pura():

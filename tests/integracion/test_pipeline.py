@@ -133,7 +133,8 @@ def test_auditoria_integra_tras_el_pipeline(cliente, cabecera_agente, cabecera_o
     verificacion = cliente.get("/api/auditoria/verificar", headers=cabecera_operador).json()
     # 2 × (alerta_recibida + verificacion_informe + explicacion_generada + notificacion_omitida)
     # (Fase 6.8b: el verificador se audita; la salida v3 trae accion_propuesta, así que no hay corrección)
-    assert verificacion == {"integra": True, "filas": 8, "primera_rota": None}
+    # + 2 × recomendacion_creada (Fase 9a: ambos confirmados con confianza ≥ 0.70 → cuarentena_puertos)
+    assert verificacion == {"integra": True, "filas": 10, "primera_rota": None}
 
 
 def test_cliente_openrouter_corta_en_el_tope_total_con_respuesta_lenta_por_partes():

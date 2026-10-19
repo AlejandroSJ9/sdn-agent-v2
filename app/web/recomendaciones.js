@@ -4,7 +4,19 @@
 import { api } from "./api.js";
 import { $, badge, el, hora, mensaje, mono, vaciar } from "./dom.js";
 
-const ACCION = { pasar_a_cuarentena: "Pasar a cuarentena", escalar_a_drop: "Volver a bloqueo total", mantener: "Mantener" };
+export const ACCION = {
+  pasar_a_cuarentena: "Pasar a cuarentena", escalar_a_drop: "Volver a bloqueo total", mantener: "Mantener",  // Fase 6.8
+  mantener_drop: "Mantener DROP total", limitar_tasa: "Limitar tasa", cuarentena_puertos: "Cuarentena de puertos",
+  cuarentena_vlan: "Cuarentena en VLAN", bloqueo_total: "Volver a DROP total",  // Fase 9a/9b: escalera de respuesta (C7)
+};
+// Etiqueta de una acción (vocabulario nuevo y el de la 6.8, que se muestra tal cual como registro histórico).
+// "<acción>_simulada" (laboratorio) → "<etiqueta> (simulada)"; un código sin etiqueta se muestra tal cual.
+export function etiquetaAccion(codigo) {
+  if (!codigo) return "—";
+  const base = codigo.endsWith("_simulada") ? codigo.slice(0, -"_simulada".length) : null;
+  if (base && ACCION[base]) return `${ACCION[base]} (simulada)`;
+  return ACCION[codigo] ?? codigo;
+}
 const CLASE_ESTADO = { pendiente: "alta", ejecutada: "ok", aprobada: "ok", rechazada: "info", expirada: "info", fallida: "critica" };
 const DECISION = { ejecutar: ["ejecutada por la política", "ok"], recomendar: ["recomendación al operador", "alta"], descartar: ["sin acción", "info"] };
 
@@ -78,7 +90,7 @@ export function iniciarRecomendaciones() {
     $("recomendaciones"),
     el("header", { class: "panel-cabecera" }, el("h2", {}, "Recomendaciones"),
       el("button", { class: "discreto empuje", onclick: refrescarRecomendaciones }, "↻ Actualizar")),
-    el("p", { class: "ayuda" }, "Acciones que la política no ejecutó sola. Aprobar las ejecuta en Ryu; nunca desbloquean un host."),
+    el("p", { class: "ayuda" }, "Acciones de la escalera (C7) que la política no ejecutó sola. Aprobar las ejecuta en Ryu (si falla, el host vuelve a DROP total); nunca desbloquean un host."),
     el("p", { id: "rec-msg", class: "mensaje" }),
     el("div", { id: "rec-lista", class: "tabla-contenedor" }),
   );

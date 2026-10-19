@@ -97,6 +97,7 @@ Encabezado: `X-Agent-Token`.
 ```
 
 No incluye acciones sobre la red. Si no valida → respaldo por reglas.
+La "confianza" del LLM es informativa: no decide. La confianza que decide la calcula el código (C7).
 
 ## C5. Eventos WebSocket `ws://localhost:8081/ws/eventos`
 
@@ -112,3 +113,37 @@ Con CONTEXTO_HABILITADO=true, el mensaje al LLM agrega un bloque <contexto_host>
 Es DATO, no instrucción. El historial es evidencia, no absolución: solo las clasificaciones del operador cuentan como verificadas; los veredictos del agente se marcan "no verificado".
 El desbloqueo (POST /api/hosts/{ip}/desbloquear) agrega el campo obligatorio "clasificacion".
 Cada incidente guarda variante (sin_contexto|con_contexto), version_prompt y contexto_usado.
+
+
+## C7. Motor de políticas y escalera de respuesta (Fase 9a)
+
+```
+Ryu bloquea primero (DROP total, "negar por defecto", NIST SP 800-207). El agente nunca escala: solo puede
+RECOMENDAR relajar el DROP según su confianza en el DIAGNÓSTICO. Ninguna acción es irreversible.
+Modos (MODO_DECISION): solo_explicar | recomendar (por defecto) | autonomo_acotado.
+
+Confianza (la calcula el código; la del LLM es informativa). s = puntaje_total/puntaje_maximo, o, si la alerta
+no trae puntaje, Σ pesos(umbrales_superados)/135 con M5=40, M3=35, M1=25, M2=20, M4=15.
+Veredicto de la SALIDA (LLM o, en respaldo, reglas):
+  confirmado     → 0.5·s + 0.5 − penalización
+  falso_positivo → 0.5·(1 − s) + 0.5 − penalización
+  indeterminado  → sin confianza: mantener_drop
+Penalización 0.20, una sola vez, si el verificador marca posible_alucinacion o el descarte benigno tiene
+menos de 20 caracteres. Resultado acotado a [0, 1] y redondeado a 2 decimales; se decide sobre ese valor.
+
+Escalera (ESCALON_HITL = 0.70 y ESCALON_VLAN = 0.95, en caliente, 0.50 ≤ ESCALON_HITL < ESCALON_VLAN ≤ 1;
+fuera de ese rango → 422):
+  confianza < ESCALON_HITL o indeterminado             → mantener_drop (decide el operador)
+  falso_positivo y confianza ≥ ESCALON_HITL            → limitar_tasa (A7; sin DROP de puertos)
+  confirmado y ESCALON_HITL ≤ confianza ≤ ESCALON_VLAN → cuarentena_puertos (A6)
+  confirmado y confianza > ESCALON_VLAN                → cuarentena_vlan (A8)
+Relajar a limitar_tasa exige un diagnóstico benigno del LLM; el respaldo por reglas nunca llega a ese escalón.
+Dictamen de historial: agravante → mantener_drop; atenuante → como máximo limitar_tasa. Atenuante con veredicto
+de la salida confirmado → mantener_drop (el diagnóstico del LLM contradice el historial verificado por el operador).
+Un veredicto confirmado NUNCA lleva a limitar_tasa: si ocurre, se descarta y se audita.
+
+Siguen vigentes: HOSTS_PROTEGIDOS, MAX_ACCIONES_POR_MIN, RECOMENDACION_TTL_MIN y solo_explicar (ni recomienda).
+UMBRAL_CONFIANZA se conserva como umbral de ejecución de la Fase 9b.
+Fase 9a: toda acción distinta de mantener_drop queda como RECOMENDACIÓN, incluso en autonomo_acotado; no se
+ejecuta nada en Ryu y aprobarla responde 409. mantener_drop nunca genera recomendación.
+```

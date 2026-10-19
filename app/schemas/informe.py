@@ -83,6 +83,28 @@ class DecisionPolitica(BaseModel):
     motivos: list[str]
 
 
+class ConfianzaCalculada(BaseModel):
+    """C7 (Fase 9a): confianza en el diagnóstico, recalculable a mano. total None → indeterminado."""
+
+    s: float  # puntaje_total/puntaje_maximo o pesos C1 / 135
+    fuente_ryu: Literal["puntaje_ryu", "pesos_c1"]
+    veredicto_usado: str  # el de la SALIDA (LLM o reglas)
+    termino_ryu: float | None  # 0.5·s (confirmado) o 0.5·(1 − s) (falso_positivo)
+    termino_veredicto: float | None  # 0.5
+    penalizacion: float
+    motivos_penalizacion: list[str]
+    total: float | None
+    formula: str
+
+
+class Escalera(BaseModel):
+    escalon_por_confianza: str
+    accion_recomendada: str
+    modificada_por_dictamen: bool
+    motivo_modificacion: str | None
+    umbrales: dict[str, float]
+
+
 class Trazabilidad(BaseModel):
     incidente_id: int
     hash_auditoria_explicacion: str | None
@@ -95,17 +117,21 @@ class Trazabilidad(BaseModel):
     variante: str
     veredicto_llm: str | None  # None si hubo respaldo por reglas
     veredicto_final: str
-    accion_propuesta: str
-    origen_accion: Literal["llm", "reglas", "dictamen"]
-    confianza_accion: float
+    accion_propuesta: str  # Fase 9a: la acción recomendada por la escalera
+    origen_accion: Literal["llm", "reglas", "dictamen", "escalera"]
+    confianza_accion: float | None  # Fase 9a: la confianza calculada (None si indeterminado)
     reversible: bool
     justificacion_accion: str
     decision_politica: DecisionPolitica
     accion_final: str | None
+    # Fase 9a (informe 1.1)
+    confianza_calculada: ConfianzaCalculada | None = None
+    escalera: Escalera | None = None
+    accion_sugerida_llm: str | None = None  # la que propuso el LLM o las reglas: informativa, no decide
 
 
 class Informe(BaseModel):
-    version_informe: str = "1.0"
+    version_informe: str = "1.1"
     evidencia_objetiva: EvidenciaObjetiva
     mitre: Mitre
     razonamiento: Razonamiento

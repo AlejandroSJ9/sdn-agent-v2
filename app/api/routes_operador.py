@@ -72,7 +72,10 @@ def obtener_config() -> dict:
 
 @router.put("/config")
 def actualizar_config(cambios: ConfigActualizar) -> dict:
-    return configuracion.actualizar(cambios.model_dump(exclude_none=True))
+    try:
+        return configuracion.actualizar(cambios.model_dump(exclude_none=True))
+    except configuracion.ConfiguracionInvalida as error:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(error)) from error
 
 
 @router.get("/llm/cupo")

@@ -4,6 +4,7 @@
 import { api } from "./api.js";
 import { $, badge, badgeDictamen, badgeVeredicto, duracion, el, hora, mono, vaciar } from "./dom.js";
 import { dibujarPorHora } from "./grafico.js";
+import { etiquetaAccion } from "./recomendaciones.js";
 
 const RANGO_SEVERIDAD = { critica: 0, alta: 1, media: 2 };
 const SEVERIDAD = { critica: "CRÍTICA", alta: "ALTA", media: "MEDIA" };
@@ -92,7 +93,7 @@ export async function refrescarActividad() {
         el("td", {}, badgeVeredicto(i.veredicto)),
         el("td", {}, fuente(i)),
         el("td", {}, badgeDictamen(i.dictamen_historial)),
-        el("td", { class: "mono" }, i.accion_final ?? i.accion_propuesta ?? "—")));
+        el("td", {}, etiquetaAccion(i.accion_final ?? i.accion_propuesta))));
     vaciar(contenedor, tabla(["Hora", "Host", "Puntaje · umbrales", "Veredicto", "Fuente", "Dictamen", "Acción"], filas));
   } catch (error) {
     vaciar(contenedor, el("p", { class: "mensaje error" }, `No se pudo leer la actividad: ${error.message}`));

@@ -31,13 +31,19 @@ function validarModal() {
   $("modal-confirmar").disabled = !valido;
 }
 
-const ACCIONES_MODO = {
-  drop_total: ["cuarentena", "Pasar a cuarentena", "El host recupera lo esencial, pero los puertos de movimiento lateral siguen bloqueados."],
-  cuarentena: ["bloqueo_total", "Volver a bloqueo total", "El host vuelve a quedar sin red."],
-};
+// Fase 9b: modos de C2 (leídos de Ryu en vivo). Desde DROP total, el operador puede pasar a cuarentena de puertos;
+// desde cualquier otro modo, volver a DROP total. limitar_tasa y cuarentena_vlan no tienen botón manual (solo escalera).
+const MODOS = { drop_total: "DROP total", cuarentena: "Cuarentena de puertos", limitado: "Tasa limitada", vlan_cuarentena: "VLAN de cuarentena" };
+const A_CUARENTENA = ["cuarentena", "Cuarentena de puertos", "El host recupera lo esencial, pero los puertos de movimiento lateral siguen bloqueados."];
+const A_DROP = ["bloqueo_total", "Volver a DROP total", "El host vuelve a quedar sin red."];
+
+function textoModo(host) {
+  const extra = host.modo === "limitado" && host.kbps ? ` (${host.kbps} kbps)` : host.modo === "vlan_cuarentena" && host.vlan ? ` (VLAN ${host.vlan})` : "";
+  return `${MODOS[host.modo] ?? host.modo ?? "—"}${extra}`;
+}
 
 async function cambiarModo(ip, modo) {
-  const [ruta, texto, efecto] = ACCIONES_MODO[modo];
+  const [ruta, texto, efecto] = modo === "drop_total" ? A_CUARENTENA : A_DROP;
   if (!window.confirm(`¿${texto} ${ip}?\n\n${efecto}`)) return;
   try {
     await api(`/api/hosts/${encodeURIComponent(ip)}/${ruta}`, { metodo: "POST" });
@@ -47,9 +53,10 @@ async function cambiarModo(ip, modo) {
   refrescarBloqueados();
 }
 
-function botonesModo(host) {
-  const accion = ACCIONES_MODO[host.modo];
-  return accion ? el("button", { class: "discreto", onclick: () => cambiarModo(host.ip, host.modo) }, accion[1]) : null;
+function botonesModo(host, conA6) {
+  if (!host.modo || (host.modo === "drop_total" && !conA6)) return null;  // la cuarentena manual exige A6 declarada
+  const [, texto] = host.modo === "drop_total" ? A_CUARENTENA : A_DROP;
+  return el("button", { class: "discreto", onclick: () => cambiarModo(host.ip, host.modo) }, texto);
 }
 
 async function confirmar(evento) {
@@ -80,14 +87,15 @@ async function confirmar(evento) {
 export async function refrescarBloqueados() {
   const contenedor = $("bloqueados");
   try {
-    const lista = await api("/api/ryu/bloqueados");
+    const [lista, estado] = await Promise.all([api("/api/ryu/bloqueados"), api("/api/ryu/estado").catch(() => null)]);
+    const conA6 = Boolean(estado?.capacidades?.cuarentena);
     vaciar($("res-bloqueados"), lista.length);
     pintarAtencion(lista);
     if (!lista.length) {
       vaciar(contenedor, el("p", { class: "mensaje" }, "Ningún host bloqueado en Ryu."));
       return;
     }
-    // "modo" solo existe si Ryu tiene cuarentena (A6): la columna aparece únicamente en ese caso (solo lectura).
+    // "modo" solo existe si Ryu tiene A6, A7 o A8: la columna aparece únicamente en ese caso.
     const conModo = lista.some((host) => "modo" in host);
     const filas = lista.map((host) =>
       el(
@@ -98,8 +106,8 @@ export async function refrescarBloqueados() {
         el("td", { class: "mono" }, hora(host.desde)),
         el("td", { class: "mono" }, host.incidente_id ? el("a", { href: `#/incidentes/${host.incidente_id}` }, `#${host.incidente_id}`) : "—"),
         el("td", {}, badge("BLOQUEADO", "critica")),
-        conModo ? el("td", { class: "mono" }, host.modo ?? "—") : null,
-        el("td", {}, conModo ? [botonesModo(host), " "] : null,
+        conModo ? el("td", {}, textoModo(host)) : null,
+        el("td", {}, conModo ? [botonesModo(host, conA6), " "] : null,
           el("button", { class: "peligro", onclick: () => abrirModal(host.ip) }, "Desbloquear")),
       ),
     );

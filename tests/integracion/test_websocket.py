@@ -67,9 +67,11 @@ def test_alerta_produce_eventos_en_orden(cliente, cabecera_agente, payload_c1, a
     with cliente.websocket_connect("/ws/eventos") as ws:
         _autenticar(ws)
         incidente_id = _alerta(cliente, cabecera_agente, payload_c1)
-        recibidos = [ws.receive_json() for _ in range(3)]
+        recibidos = [ws.receive_json() for _ in range(4)]
 
-    assert [e["tipo"] for e in recibidos] == ["alerta_recibida", "explicacion_lista", "notificacion_enviada"]
+    # Fase 9a: confirmado 0.80 → recomendación cuarentena_puertos antes del correo
+    assert [e["tipo"] for e in recibidos] == ["alerta_recibida", "explicacion_lista", "recomendacion_creada",
+                                              "notificacion_enviada"]
     assert recibidos[0]["datos"] == {
         "incidente_id": incidente_id, "host_origen": "10.0.0.3", "agrupada": False, "contador_alertas": 1,
     }

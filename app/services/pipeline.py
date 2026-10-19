@@ -1,7 +1,7 @@
 """Pipeline de un incidente nuevo. Corre en segundo plano (BackgroundTasks).
 
-Orden estricto (Fase 6.8a+b): alerta → contexto → dictamen determinista → LLM v3 (recibe el dictamen como
-dato) → veredicto final → coherencia de acción → verificador → política → informe → notificación.
+Orden estricto (Fase 6.8a+b, 9a): alerta → contexto → dictamen determinista → LLM v3 (recibe el dictamen como
+dato) → veredicto final → verificador → confianza calculada y escalera (C7) → política → informe → notificación.
 El CÓDIGO decide lo concluyente (dictamen) y aporta los hechos; el LLM solo interpreta. Solo
 services/acciones.py puede actuar sobre Ryu, y nunca para desbloquear.
 """
@@ -18,17 +18,16 @@ from app.integrations.llm import ClienteLLM, ClienteOpenRouter, LLMError, Respue
 from app.schemas.alerta import AlertaEntrada
 from app.schemas.explicacion import SalidaLLMv3
 from app.services import (
-    acciones, auditoria, configuracion, contexto, decision, evidencia, eventos, informe, notificacion, politica,
+    acciones, auditoria, configuracion, contexto, decision, escalera, evidencia, eventos, informe, notificacion,
     presupuesto, verificador,
 )
 from app.services.dictamen_historial import dictaminar
-from app.services.explicacion_reglas import CONFIANZA_REGLAS, explicar_por_reglas
+from app.services.explicacion_reglas import explicar_por_reglas
 from app.services.prompt import VERSIONES, construir_mensaje_usuario, system_prompt
 
 logger = logging.getLogger(__name__)
 
 Intento = tuple[SalidaLLMv3 | None, str | None, RespuestaLLM | None]  # (salida, motivo_respaldo, respuesta)
-JUSTIFICACION_ATENUANTE = "2 o más falsos positivos verificados por el operador con el mismo patrón"
 
 
 def obtener_cliente_llm() -> ClienteLLM:
@@ -75,28 +74,25 @@ def _variante(laboratorio: dict | None) -> str:
     return "con_contexto" if configuracion.contexto()["habilitado"] else "sin_contexto"
 
 
-def _accion_coherente(incidente_id: int, salida: SalidaLLMv3, fuente: str, dictamen: dict, modo_actual: str) -> dict[str, Any]:
-    """Acción final propuesta: el dictamen manda; sin dictamen, la del LLM/reglas normalizada al modo del host."""
-    propuesta, corregida = politica.normalizar_accion(salida.accion_propuesta, modo_actual)
-    if corregida:
-        auditoria.registrar("accion_propuesta_corregida", {
-            "incidente_id": incidente_id, "propuesta": salida.accion_propuesta, "modo_actual": modo_actual,
-            "corregida_a": propuesta,
-        })
-    if dictamen["tipo"] == "agravante":
-        accion = {"accion": "mantener", "confianza": salida.confianza, "origen": "dictamen",
-                  "justificacion": f"Dictamen agravante: {dictamen['motivo']}"}
-    elif dictamen["tipo"] == "atenuante":
-        cuarentena, _ = politica.normalizar_accion("pasar_a_cuarentena", modo_actual)  # ya en cuarentena → mantener
-        accion = {"accion": cuarentena, "confianza": CONFIANZA_REGLAS, "origen": "dictamen",
-                  "justificacion": JUSTIFICACION_ATENUANTE}
-    else:
-        accion = {"accion": propuesta, "confianza": salida.confianza, "origen": fuente,
-                  "justificacion": salida.justificacion_accion}
-    if accion["accion"] != propuesta:
-        auditoria.registrar("accion_ajustada", {"incidente_id": incidente_id, "propuesta": propuesta,
-                                                "final": accion["accion"], "origen": accion["origen"]})
-    return accion
+def _accion_escalera(incidente_id: int, alerta: AlertaEntrada, salida: SalidaLLMv3, dictamen: dict,
+                     verificacion: dict) -> tuple[dict[str, Any], dict, dict]:
+    """(acción para la política, confianza calculada, escalera). La propuesta del LLM/reglas no decide (C7)."""
+    total, maximo = informe.puntajes(alerta.crudo)
+    confianza = escalera.calcular_confianza(salida.veredicto, total, maximo, informe.umbrales_superados(alerta),
+                                            verificacion["resultado"], salida.descarte_benigno)
+    vigente = configuracion.politica()
+    resultado = escalera.decidir(confianza, dictamen, vigente["escalon_hitl"], vigente["escalon_vlan"])
+    if resultado["modificada_por_dictamen"]:
+        auditoria.registrar("accion_ajustada", {"incidente_id": incidente_id, "propuesta": resultado["escalon_por_confianza"],
+                                                "final": resultado["accion_recomendada"], "origen": "dictamen",
+                                                "motivo": resultado["motivo_modificacion"]})
+    justificacion = f"Escalera: {confianza['formula']} → {resultado['escalon_por_confianza']}"
+    if resultado["modificada_por_dictamen"]:
+        justificacion += f"; {resultado['motivo_modificacion']} → {resultado['accion_recomendada']}"
+    accion = {"accion": resultado["accion_recomendada"], "confianza": confianza["total"],
+              "origen": "dictamen" if resultado["modificada_por_dictamen"] else "escalera",
+              "justificacion": justificacion[:300]}
+    return accion, confianza, resultado
 
 
 def procesar(incidente_id: int, cliente: ClienteLLM | None = None) -> None:
@@ -143,12 +139,12 @@ def procesar(incidente_id: int, cliente: ClienteLLM | None = None) -> None:
         if tecnica[1]:
             auditoria.registrar("tecnica_corregida", {"incidente_id": incidente_id, "propuesta": salida.tecnica_id,
                                                       "corregida_a": tecnica[0]})
-        accion = _accion_coherente(incidente_id, salida, fuente, dictamen, modo_actual)
 
-        # verificador anti-alucinación (no bloquea nada)
+        # verificador anti-alucinación (no bloquea nada; penaliza la confianza calculada)
         numeros, ips = informe.respaldados(alerta, evaluadas, alertas_agrupadas, contexto_host)
         verificacion = verificador.verificar(informe.textos_llm(salida), numeros, ips)
         auditoria.registrar("verificacion_informe", {"incidente_id": incidente_id, **verificacion})
+        accion, confianza, resultado_escalera = _accion_escalera(incidente_id, alerta, salida, dictamen, verificacion)
 
         t_explicado = datetime.now(timezone.utc)
         repository.guardar_explicacion(
@@ -172,7 +168,9 @@ def procesar(incidente_id: int, cliente: ClienteLLM | None = None) -> None:
                                              "veredicto": veredicto_final, "severidad": salida.severidad})
 
         try:
-            decidido = decision.decidir(incidente_id, {**accion, "veredicto": veredicto_final}, laboratorio)
+            decidido = decision.decidir(incidente_id, {**accion, "veredicto": veredicto_final,
+                                                       "veredicto_salida": salida.veredicto, "modo_actual": modo_actual},
+                                        laboratorio)
         except Exception:  # la explicación ya quedó; la acción queda sin decidir y el correo sale igual
             logger.exception("Falló la decisión de la política en el incidente %s", incidente_id)
             decidido = {"decision_politica": None, "motivos": [], "accion_final": None}
@@ -192,6 +190,7 @@ def procesar(incidente_id: int, cliente: ClienteLLM | None = None) -> None:
             "justificacion_accion": accion["justificacion"],
             "decision_politica": {"resultado": decidido["decision_politica"], "motivos": decidido["motivos"]},
             "accion_final": decidido["accion_final"],
+            "confianza_calculada": confianza, "escalera": resultado_escalera, "accion_sugerida_llm": salida.accion_propuesta,
         }
         armado = informe.ensamblar(alerta, evaluadas, fuente_umbrales, salida, tecnica, dictamen, verificacion, traza)
         repository_acciones.guardar_informe(incidente_id, armado, informe.resumen(armado, salida.severidad))

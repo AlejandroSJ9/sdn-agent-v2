@@ -7,6 +7,7 @@ from typing import Any
 from app.schemas.alerta import AlertaEntrada
 from app.schemas.explicacion import SalidaLLMv3
 from app.schemas.informe import Informe
+from app.services import escalera
 from app.services.prompt import TECNICAS_PERMITIDAS, UMBRALES_VALIDOS
 
 TECNICA_POR_DEFECTO = "T1021"
@@ -19,7 +20,7 @@ CATALOGO_MITRE = {
     "T1570": ("Lateral Tool Transfer", "Lateral Movement (TA0008)"),
     "T1021": ("Remote Services", "Lateral Movement (TA0008)"),
 }
-REVERSIBLES = ("mantener", "pasar_a_cuarentena", "escalar_a_drop")  # ninguna libera el host
+REVERSIBLES = ("mantener", "pasar_a_cuarentena", "escalar_a_drop", *escalera.ACCIONES)  # ninguna libera el host
 _CLAVE_RYU = {"M1_nuevos_flujos_por_30s": "M1", "M2_destinos_unicos_por_30s": "M2", "M4_packet_in_por_min": "M4",
               "M5_count": "M5"}
 MAX_RESUMEN = 600
@@ -34,7 +35,7 @@ def umbrales_superados(alerta: AlertaEntrada) -> list[str]:
     return [u for u in UMBRALES_VALIDOS if u in alerta.umbrales_superados]
 
 
-def _puntajes(crudo: dict) -> tuple[float | None, float | None]:
+def puntajes(crudo: dict) -> tuple[float | None, float | None]:
     total, maximo = crudo.get("puntaje_total"), crudo.get("puntaje_maximo")
     if isinstance(total, (int, float)) and isinstance(maximo, (int, float)) and maximo > 0:
         return total, maximo
@@ -53,7 +54,7 @@ def respaldados(alerta: AlertaEntrada, evaluadas: dict, alertas_agrupadas: int, 
     numeros = [alertas_agrupadas]
     for e in evaluadas.values():
         numeros += [e["valor"], e["umbral"], e["desviacion"]]
-    numeros += [x for x in _puntajes(alerta.crudo) if x is not None]
+    numeros += [x for x in puntajes(alerta.crudo) if x is not None]
     superados = len(umbrales_superados(alerta))
     numeros += [superados, 5 - superados]
     ips = [alerta.host_origen]
@@ -72,7 +73,7 @@ def ensamblar(
 ) -> dict[str, Any]:
     """Informe completo (validado con schemas/informe.py) listo para guardar como JSON."""
     superados = umbrales_superados(alerta)
-    total, maximo = _puntajes(alerta.crudo)
+    total, maximo = puntajes(alerta.crudo)
     if total is not None:
         solidez = {"valor": round(total / maximo, 2), "formula": f"puntaje_total / puntaje_maximo = {total}/{maximo}"}
     else:
@@ -111,6 +112,25 @@ def _texto_accion(accion_final: str | None, accion_propuesta: str) -> str:
     return "se mantiene el bloqueo total"
 
 
+def linea_accion(traza: dict) -> str:
+    """Fase 9a/9b: "Acción ejecutada: …" o "Acción recomendada: … (confianza x)"; informes previos: frases de la 6.8."""
+    accion = traza["accion_propuesta"]
+    if accion not in escalera.ACCIONES:
+        return f"Acción: {_texto_accion(traza['accion_final'], accion)}"
+    texto = escalera.texto_accion(accion, traza["confianza_accion"])
+    final = traza["accion_final"] or ""
+    if final == accion:
+        return f"Acción ejecutada: {texto}"
+    if final == f"{accion}_simulada":
+        return f"Acción ejecutada (simulada): {texto}"
+    if final == "fallida":
+        motivos = " ".join(traza["decision_politica"]["motivos"])
+        aviso = "¡ATENCIÓN! Ryu no confirmó el DROP total: verifique el host" if "Ryu no confirmó el DROP total" in motivos \
+            else "el host sigue en DROP total"
+        return f"Acción recomendada: {texto} · falló la ejecución; {aviso}"
+    return f"Acción recomendada: {texto}"
+
+
 def _supera(informe: dict) -> str:
     partes = [f"{campo.split('_')[0] if campo != 'M5_count' else 'M5_count'} {_n(e['valor'])}/{_n(e['umbral'])} (×{e['desviacion']:.2f})"
               for campo, e in informe["evidencia_objetiva"]["metricas"].items() if e["supera"]]
@@ -134,7 +154,7 @@ def lineas(informe: dict, severidad: str | None) -> list[str]:
         f"MITRE: {mitre['tecnica_id']} {mitre['nombre']} ({mitre['tactica'].split(' (')[0]}) · {mitre['hipotesis_fase'][:140]}",
         f"Razonamiento: veredicto final {traza['veredicto_final']} ({origen}{detalle_dictamen}) · "
         f"confianza declarada {razon['confianza_modelo']['valor']:.2f} · {verificacion}",
-        f"Acción: {_texto_accion(traza['accion_final'], traza['accion_propuesta'])}",
+        linea_accion(traza),
     ]
 
 
@@ -148,6 +168,6 @@ def resumen(informe: dict, severidad: str | None) -> str:
         + (f"Dictamen {dictamen['tipo']}: {dictamen['motivo']}. " if dictamen["tipo"] else "")
         + f"Solidez {razon['solidez_evidencia']['valor']:.2f} · confianza declarada {razon['confianza_modelo']['valor']:.2f} · "
         f"{'verificado' if razon['verificacion']['resultado'] == 'verificado' else 'posible alucinación'}. "
-        f"Acción: {_texto_accion(traza['accion_final'], traza['accion_propuesta'])}."
+        f"{linea_accion(traza)}."
     )
     return texto[:MAX_RESUMEN]

@@ -2,6 +2,7 @@
 // "No disponible" se ve en gris; la verificación anti-alucinación, como badge.
 
 import { badge, badgeVeredicto, duracion, el, hora, mono, msEntre } from "./dom.js";
+import { ACCION } from "./recomendaciones.js";
 
 const NO_DISPONIBLE = "no disponible en la telemetría actual";
 const CAMPOS_TELEMETRIA = [["destinos", "Destinos"], ["puertos", "Puertos"], ["protocolo", "Protocolo"],
@@ -115,14 +116,42 @@ function exportar(i) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+// Fase 9a/9b: "Confianza 0.78: Limitar tasa (ejecutado | recomendado | falló la ejecución)" con el desglose desplegable (C7).
+export function resumenEscalera(t, abierto = false) {
+  const c = t.confianza_calculada;
+  const e = t.escalera;
+  const accion = ACCION[e.accion_recomendada] ?? e.accion_recomendada;
+  const final = t.accion_final ?? "";
+  const estado = final === e.accion_recomendada ? "ejecutado" : final === `${e.accion_recomendada}_simulada` ? "ejecutado, simulado"
+    : final === "fallida" ? "falló la ejecución" : "recomendado";
+  const titulo = c.total === null ? `Sin escalón (${c.veredicto_usado}): ${accion}, decide el operador`
+    : `Confianza ${c.total.toFixed(2)}: ${accion} (${estado})`;
+  return el("details", { class: "plegable", "data-clave": "escalera", open: abierto }, el("summary", {}, titulo), desgloseEscalera(t));
+}
+
+function desgloseEscalera(t) {
+  const c = t.confianza_calculada;
+  const e = t.escalera;
+  const componentes = c.total === null ? "no se calcula (diagnóstico indeterminado)"
+    : `Ryu ${c.termino_ryu.toFixed(4)} (s = ${c.s.toFixed(4)}, ${c.fuente_ryu}) + veredicto ${c.termino_veredicto.toFixed(2)} (${c.veredicto_usado}) − penalización ${c.penalizacion.toFixed(2)}`;
+  return dl([["Fórmula", mono(c.formula)], ["Componentes", componentes],
+    ["Penalización", c.motivos_penalizacion.length ? c.motivos_penalizacion.join(" · ") : "ninguna"],
+    ["Escalón por confianza", ACCION[e.escalon_por_confianza] ?? e.escalon_por_confianza],
+    ["Acción recomendada", ACCION[e.accion_recomendada] ?? e.accion_recomendada],
+    ["Modificada por el dictamen", e.modificada_por_dictamen ? `sí: ${e.motivo_modificacion}` : "no"],
+    ["Umbrales", `HITL ${e.umbrales.ESCALON_HITL} · VLAN ${e.umbrales.ESCALON_VLAN}`],
+    ["Sugerida por el LLM (informativa)", t.accion_sugerida_llm ?? "—"]]);
+}
+
 function trazabilidad(t, i, extras) {
   return tarjeta(
     "4 · Trazabilidad y acción",
     dl([["Incidente", mono(`#${t.incidente_id}`)], ["Hash de auditoría", el("span", { class: "mono hash" }, t.hash_auditoria_explicacion ?? "—")],
       ["Modelo", t.fuente_explicacion === "reglas" ? `no usado (respaldo por reglas: ${i.motivo_respaldo_legible})` : mono(t.modelo)], ["Fuente", t.fuente_explicacion], ["Versión del prompt", mono(t.version_prompt)], ["Variante", t.variante],
-      ["Acción propuesta", [mono(t.accion_propuesta), ` (origen: ${t.origen_accion}, confianza ${t.confianza_accion.toFixed(2)})`]],
+      ["Acción propuesta", [mono(t.accion_propuesta), ` (origen: ${t.origen_accion}, confianza ${t.confianza_accion === null ? "—" : t.confianza_accion.toFixed(2)})`]],
       ["Decisión de la política", [mono(t.decision_politica.resultado ?? "—"), t.decision_politica.motivos.length ? ` · ${t.decision_politica.motivos.join(" · ")}` : ""]],
       ["Acción final", mono(t.accion_final ?? "—")], ["Reversible", t.reversible ? "sí" : "no"]]),
+    t.escalera ? [el("h3", {}, "Escalera de respuesta (C7)"), desgloseEscalera(t)] : null,
     el("h3", {}, "Línea de tiempo"), lineaTiempo(i),
     ...extras,
     el("button", { onclick: () => exportar(i) }, "Exportar informe (JSON)"),

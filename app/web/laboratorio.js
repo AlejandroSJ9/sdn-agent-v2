@@ -2,6 +2,7 @@
 
 import { api } from "./api.js";
 import { $, chip, duracion, el, mensaje, vaciar } from "./dom.js";
+import { etiquetaAccion } from "./recomendaciones.js";
 
 let escenarios = [];
 let corridaMostrada = null;
@@ -45,7 +46,7 @@ async function ejecutar(cuerpo, cantidad) {
       metodo: "POST",
       cuerpo: {
         ...cuerpo, usar_llm: usarLlm, repeticiones: repeticiones(), enviar_correos: correos, variante: $("lab-variante").value,
-        modo_decision: $("lab-modo").value, umbral_confianza: Number($("lab-umbral").value),
+        modo_decision: $("lab-modo").value,  // UMBRAL_CONFIANZA retirado en la Fase 9b
       },
     });
     corridaMostrada = r.corrida_id;
@@ -119,7 +120,7 @@ export async function mostrarCorrida(id) {
     return;
   }
   corridaMostrada = id;
-  const opciones = `${c.usar_llm ? "con LLM" : "sin LLM"} · ${c.variante.replace("_", " ")} · ${c.modo_decision.replace("_", " ")} (umbral ${c.umbral_confianza}, simulado) · ${c.repeticiones} rep. · correos ${c.enviar_correos ? "sí" : "no"}`;
+  const opciones = `${c.usar_llm ? "con LLM" : "sin LLM"} · ${c.variante.replace("_", " ")} · ${c.modo_decision.replace("_", " ")} (simulado) · ${c.repeticiones} rep. · correos ${c.enviar_correos ? "sí" : "no"}`;
   vaciar($("lab-corrida"), `#${c.id} · ${c.estado} · ${opciones}`);
   vaciar($("lab-resumen"), c.resumen ? resumenCorrida(c.resumen) : el("p", { class: "mensaje" }, c.error ?? "Sin resumen todavía."));
   const filas = c.resultados.map((r) =>
@@ -131,7 +132,7 @@ export async function mostrarCorrida(id) {
       el("td", {}, r.veredicto_obtenido ?? "—"),
       el("td", { class: r.acierto ? "texto-ok" : "texto-mal", title: r.decidible ? "" : "No decidible: no cuenta en la exactitud" }, `${r.acierto ? "✓" : "✗"}${r.decidible ? "" : " *"}`),
       el("td", {}, r.fuente === "llm" ? chip("LLM", "llm") : chip(r.motivo_respaldo ?? r.fuente ?? "—")),
-      el("td", { class: "mono", title: r.decision_politica ? `propuesta: ${r.accion_propuesta} · política: ${r.decision_politica}` : "" }, r.accion_final ?? "—"),
+      el("td", { title: r.decision_politica ? `propuesta: ${etiquetaAccion(r.accion_propuesta)} · política: ${r.decision_politica}` : "" }, etiquetaAccion(r.accion_final)),
       el("td", { class: "mono", title: r.dictamen_historial ? `dictamen ${r.dictamen_historial}` : "" },
         `${r.veredicto_llm ?? "—"}${r.dictamen_historial ? ` → ${r.dictamen_historial}` : ""}${r.verificacion === "posible_alucinacion" ? " ⚠" : ""}`),
       el("td", { class: "mono" }, duracion(r.latencia_explicacion_ms)),

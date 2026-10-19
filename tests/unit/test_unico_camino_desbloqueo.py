@@ -129,9 +129,9 @@ def test_el_detector_de_escrituras_funciona():
     assert _nombres_usados(ast.parse(codigo)) & ESCRITURAS_SQL == {"begin", "add"}
 
 
-# ---- Fase 6.8: caminos autorizados hacia Ryu ----
+# ---- Fase 6.8 / 9b: caminos autorizados hacia Ryu ----
 
-ACCIONES_A6 = {"cuarentena", "bloqueo_total"}
+ACCIONES_A6 = {"cuarentena", "bloqueo_total", "limitar_tasa", "cuarentena_vlan"}  # A6, A7, A8 y la vuelta a DROP total
 ARCHIVO_ACCIONES = Path("services/acciones.py")
 # Módulos de LLM, prompt, contexto y decisión pura: jamás importan el cliente de Ryu.
 SIN_RYU = ("integrations/llm.py", "services/prompt.py", "services/contexto.py", "services/explicacion_reglas.py",
@@ -139,7 +139,7 @@ SIN_RYU = ("integrations/llm.py", "services/prompt.py", "services/contexto.py", 
 
 
 def usos_de_acciones_a6(codigo: str) -> list[tuple[int, str | None]]:
-    """(línea, función) de cada llamada x.cuarentena(...) o x.bloqueo_total(...)."""
+    """(línea, función) de cada llamada x.cuarentena / bloqueo_total / limitar_tasa / cuarentena_vlan(...)."""
     usos: list[tuple[int, str | None]] = []
     funciones: list[str] = []
 
@@ -159,20 +159,21 @@ def usos_de_acciones_a6(codigo: str) -> list[tuple[int, str | None]]:
 
 
 def test_detector_de_acciones_a6():
-    codigo = "def f(c):\n    c.cuarentena('10.0.0.3')\n    return c.bloqueo_total('10.0.0.3')\n"
-    assert usos_de_acciones_a6(codigo) == [(2, "f"), (3, "f")]
+    codigo = ("def f(c):\n    c.cuarentena('10.0.0.3')\n    return c.bloqueo_total('10.0.0.3')\n"
+              "def g(c):\n    c.limitar_tasa('10.0.0.3', 1)\n    c.cuarentena_vlan('10.0.0.3')\n")
+    assert usos_de_acciones_a6(codigo) == [(2, "f"), (3, "f"), (5, "g"), (6, "g")]
 
 
-def test_cuarentena_y_bloqueo_total_solo_desde_acciones_ejecutar():
+def test_acciones_de_red_solo_desde_acciones_llamar():
     for archivo in sorted(RAIZ_APP.rglob("*.py")):
         relativo = archivo.relative_to(RAIZ_APP)
         if relativo == Path("integrations/ryu.py"):
             continue  # ahí se DEFINEN (C2)
         usos = usos_de_acciones_a6(archivo.read_text(encoding="utf-8"))
         if relativo == ARCHIVO_ACCIONES:
-            assert {funcion for _, funcion in usos} == {"ejecutar"}, usos
+            assert {funcion for _, funcion in usos} == {"_llamar"}, usos
         else:
-            assert usos == [], f"{relativo} llama a cuarentena/bloqueo_total fuera de acciones.py: {usos}"
+            assert usos == [], f"{relativo} llama a una acción de red fuera de acciones.py: {usos}"
 
 
 @pytest.mark.parametrize("relativo", SIN_RYU)

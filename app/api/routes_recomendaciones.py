@@ -1,4 +1,4 @@
-"""Rutas del operador para la decisión acotada (C7): recomendaciones y acciones manuales de cuarentena."""
+"""Rutas del operador para la decisión acotada (C7): recomendaciones, cuarentena de puertos manual y volver a DROP total."""
 
 from typing import Annotated, Literal
 
@@ -51,9 +51,9 @@ def _accion_operador(ip: str, accion: str) -> dict:
 
 @router.post("/hosts/{ip}/cuarentena")
 def pasar_a_cuarentena(ip: Annotated[IPv4, Path()]) -> dict:
-    return _accion_operador(ip, "pasar_a_cuarentena")
+    return _accion_operador(ip, "cuarentena_puertos")
 
 
 @router.post("/hosts/{ip}/bloqueo_total")
 def volver_a_bloqueo_total(ip: Annotated[IPv4, Path()]) -> dict:
-    return _accion_operador(ip, "escalar_a_drop")
+    return _accion_operador(ip, "bloqueo_total")

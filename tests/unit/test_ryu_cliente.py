@@ -87,33 +87,49 @@ def test_otro_codigo_es_ryu_error_con_el_codigo():
 
 # ---- Fase 6.6: capacidades y validación local de umbrales ----
 
-def _cliente_mock(url: str, cuarentena: bool) -> tuple[ClienteRyu, list[str]]:
-    """Cliente contra el mock que además anota las rutas pedidas."""
-    interno = transporte_asgi(mock_ryu.crear_app(TOKEN_AGENTE, cuarentena=cuarentena))
+def _cliente_mock(url: str, cuarentena: bool, anterior_9b: bool = False, **capacidades) -> tuple[ClienteRyu, list[str]]:
+    """Cliente contra el mock que además anota las rutas pedidas. anterior_9b: /ryu/estado sin "capacidades"."""
+    interno = transporte_asgi(mock_ryu.crear_app(
+        TOKEN_AGENTE, cuarentena=cuarentena, **{"limitar_tasa": False, "cuarentena_vlan": False, **capacidades}))
     rutas: list[str] = []
 
     def manejar(peticion: httpx.Request) -> httpx.Response:
         rutas.append(f"{peticion.method} {peticion.url.path}")
-        return interno.handle_request(peticion)
+        respuesta = interno.handle_request(peticion)
+        if anterior_9b and peticion.url.path == "/ryu/estado":
+            cuerpo = {k: v for k, v in respuesta.json().items() if k != "capacidades"}
+            return httpx.Response(respuesta.status_code, json=cuerpo)
+        return respuesta
 
     return ClienteRyu(url, TOKEN_AGENTE, transporte=httpx.MockTransport(manejar)), rutas
 
 
+NINGUNA = {"cuarentena": False, "limitar_tasa": False, "cuarentena_vlan": False}
+
+
 @pytest.mark.parametrize("cuarentena", [True, False])
-def test_capacidades_detecta_a6_una_vez_y_la_cachea(cuarentena):
-    cliente, rutas = _cliente_mock("http://ryu-a.test", cuarentena)
-    assert cliente.capacidades() == {"cuarentena": cuarentena}
-    assert cliente.capacidades() == {"cuarentena": cuarentena}
-    assert rutas == ["GET /ryu/hosts/bloqueados"]  # la segunda vez sale de la caché
+def test_capacidades_declaradas_en_estado_una_vez_y_en_cache(cuarentena):
+    cliente, rutas = _cliente_mock("http://ryu-a.test", cuarentena, limitar_tasa=True)
+    esperado = {"cuarentena": cuarentena, "limitar_tasa": True, "cuarentena_vlan": False}
+    assert cliente.capacidades() == esperado
+    assert cliente.capacidades() == esperado
+    assert rutas == ["GET /ryu/estado"]  # la segunda vez sale de la caché
     cliente.capacidades(refrescar=True)
     assert len(rutas) == 2
 
 
-def test_capacidades_con_lista_vacia_es_false_sin_cache():
-    cliente, rutas = _cliente_mock("http://ryu-b.test", cuarentena=True)
+@pytest.mark.parametrize("cuarentena", [True, False])
+def test_ryu_anterior_a_9b_infiere_a6_por_el_modo(cuarentena):
+    cliente, rutas = _cliente_mock("http://ryu-d.test", cuarentena, anterior_9b=True)
+    assert cliente.capacidades() == {**NINGUNA, "cuarentena": cuarentena}
+    assert rutas == ["GET /ryu/estado", "GET /ryu/hosts/bloqueados"]
+
+
+def test_ryu_anterior_con_lista_vacia_es_false_sin_cache():
+    cliente, rutas = _cliente_mock("http://ryu-b.test", cuarentena=True, anterior_9b=True)
     cliente.desbloquear("10.0.0.3")
     cliente.desbloquear("10.0.0.5")
-    assert cliente.capacidades() == {"cuarentena": False}
+    assert cliente.capacidades() == NINGUNA
     assert "http://ryu-b.test" not in ryu_modulo._capacidades
     cliente.capacidades()
     assert rutas.count("GET /ryu/hosts/bloqueados") == 2

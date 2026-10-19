@@ -67,18 +67,18 @@ def test_nan_y_json_roto_son_422_explicados(cliente, cabecera_agente, cabecera_o
 
 
 def _ryu_con_a6(monkeypatch, cuarentena: bool) -> None:
-    app_mock = mock_ryu.crear_app(TOKEN_AGENTE, cuarentena=cuarentena)
+    app_mock = mock_ryu.crear_app(TOKEN_AGENTE, cuarentena=cuarentena, limitar_tasa=False, cuarentena_vlan=False)
     cliente_ryu = ClienteRyu("http://ryu.test", TOKEN_AGENTE, transporte=transporte_asgi(app_mock))
     monkeypatch.setattr(operador, "obtener_cliente_ryu", lambda: cliente_ryu)
 
 
 def test_panel_ve_modo_y_capacidad_solo_con_a6(cliente, cabecera_operador, monkeypatch):
     _ryu_con_a6(monkeypatch, cuarentena=True)
-    assert cliente.get("/api/ryu/estado", headers=cabecera_operador).json()["capacidades"] == {"cuarentena": True}
+    assert cliente.get("/api/ryu/estado", headers=cabecera_operador).json()["capacidades"] == {"cuarentena": True, "limitar_tasa": False, "cuarentena_vlan": False}
     assert all(h["modo"] == "drop_total" for h in cliente.get("/api/ryu/bloqueados", headers=cabecera_operador).json())
 
 
 def test_panel_sin_a6_no_ve_modo(cliente, cabecera_operador, monkeypatch):
     _ryu_con_a6(monkeypatch, cuarentena=False)
-    assert cliente.get("/api/ryu/estado", headers=cabecera_operador).json()["capacidades"] == {"cuarentena": False}
+    assert cliente.get("/api/ryu/estado", headers=cabecera_operador).json()["capacidades"] == {"cuarentena": False, "limitar_tasa": False, "cuarentena_vlan": False}
     assert all("modo" not in h for h in cliente.get("/api/ryu/bloqueados", headers=cabecera_operador).json())

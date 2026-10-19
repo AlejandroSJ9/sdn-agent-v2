@@ -62,7 +62,7 @@ def con_contexto(cliente, cabecera_operador):
     assert cliente.put("/api/config", json={"CONTEXTO_HABILITADO": True}, headers=cabecera_operador).status_code == 200
 
 
-def test_atenuante_fija_veredicto_final_fuerza_cuarentena_y_la_politica_lo_usa(
+def test_atenuante_fija_veredicto_final_y_la_alucinacion_penaliza_la_confianza(
     cliente, bd_temporal, cabecera_agente, payload_c1, llm, con_contexto
 ):
     for dias in (1, 2):
@@ -75,13 +75,13 @@ def test_atenuante_fija_veredicto_final_fuerza_cuarentena_y_la_politica_lo_usa(
     assert contexto["dictamen_historial"] == {"tipo": "atenuante", "veredicto": "indeterminado",
                                               "motivo": "2 clasificaciones falso_positivo del operador con los mismos umbrales (M1, M2, M3)"}
     assert (i.veredicto_llm, i.veredicto, i.dictamen_historial) == ("confirmado", "indeterminado", "atenuante")
-    # La política usó el veredicto FINAL: con "confirmado" la cuarentena se habría descartado; aquí se recomienda.
-    assert (i.accion_propuesta, i.decision_politica, i.accion_final) == ("pasar_a_cuarentena", "recomendar", "recomendada")
+    # Fase 9a: confirmado (salida) 0.80 − 0.20 (posible alucinación) = 0.60 < HITL → mantener_drop por confianza
+    assert (i.accion_propuesta, i.decision_politica, i.accion_final) == ("mantener_drop", "descartar", "ninguna")
     with Session(bd_temporal) as sesion:
-        assert sesion.scalars(select(Recomendacion)).one().confianza == 0.6
+        assert sesion.scalars(select(Recomendacion)).all() == []
     assert _auditados(bd_temporal, "dictamen_aplicado") == [{"incidente_id": i.id, "tipo": "atenuante",
                                                              "veredicto_llm": "confirmado", "veredicto_final": "indeterminado"}]
-    assert _auditados(bd_temporal, "accion_ajustada")[0]["final"] == "pasar_a_cuarentena"
+    assert _auditados(bd_temporal, "accion_ajustada") == []  # el escalón ya era mantener_drop: el dictamen no lo cambió
     assert _auditados(bd_temporal, "tecnica_corregida")[0] == {"incidente_id": i.id, "propuesta": "T9999", "corregida_a": "T1021"}
 
     r = i.informe
@@ -89,21 +89,23 @@ def test_atenuante_fija_veredicto_final_fuerza_cuarentena_y_la_politica_lo_usa(
     assert r["razonamiento"]["verificacion"] == {"resultado": "posible_alucinacion", "numeros_no_respaldados": ["10.0.0.99", "445"]}
     assert _auditados(bd_temporal, "verificacion_informe")[0]["resultado"] == "posible_alucinacion"
     t = r["trazabilidad_y_accion"]
-    assert (t["modelo"], t["version_prompt"], t["origen_accion"], t["justificacion_accion"]) == (
-        "modelo-configurado/prueba", "v3.1-contexto-historial", "dictamen", "2 o más falsos positivos verificados por el operador con el mismo patrón")
+    assert (t["modelo"], t["version_prompt"], t["origen_accion"]) == ("modelo-configurado/prueba", "v3.1-contexto-historial", "escalera")
+    assert (t["confianza_calculada"]["total"], t["confianza_calculada"]["penalizacion"]) == (0.6, 0.2)
+    assert t["escalera"]["modificada_por_dictamen"] is False and t["accion_sugerida_llm"] == "mantener"
     explicacion_auditada = [a for a in _auditados(bd_temporal, "explicacion_generada") if a["incidente_id"] == i.id]
     assert len(explicacion_auditada) == 1 and len(t["hash_auditoria_explicacion"]) == 64
     assert i.explicacion == pipeline.informe.resumen(r, i.severidad) and len(i.explicacion) <= 600
 
 
-def test_agravante_fuerza_mantener_y_confirmado(cliente, bd_temporal, cabecera_agente, payload_c1, llm, con_contexto):
+def test_agravante_fija_confirmado_y_mantener_drop(cliente, bd_temporal, cabecera_agente, payload_c1, llm, con_contexto):
     _previo("10.0.0.7", 5, veredicto="confirmado")
     _previo("10.0.0.8", 10, veredicto="confirmado")
     llm(veredicto="indeterminado", accion_propuesta="pasar_a_cuarentena", confianza=0.99)
     i = _alerta(cliente, cabecera_agente, payload_c1)
     assert (i.veredicto_llm, i.veredicto, i.dictamen_historial) == ("indeterminado", "confirmado", "agravante")
-    assert (i.accion_propuesta, i.decision_politica, i.accion_final) == ("mantener", "descartar", "ninguna")
-    assert i.informe["trazabilidad_y_accion"]["justificacion_accion"].startswith("Dictamen agravante: 2 hosts confirmados")
+    # Fase 9a: la salida es indeterminado → sin escalón (mantener_drop); el agravante con confianza alta está en test_escalera_pipeline
+    assert (i.accion_propuesta, i.decision_politica, i.accion_final) == ("mantener_drop", "descartar", "ninguna")
+    assert i.informe["trazabilidad_y_accion"]["confianza_calculada"]["total"] is None
 
 
 def test_sin_dictamen_manda_el_llm_y_el_informe_queda_verificado(cliente, bd_temporal, cabecera_agente, payload_c1, llm):
@@ -122,7 +124,8 @@ def test_correo_en_4_lineas_mas_enlace(cliente, bd_temporal, cabecera_agente, pa
     i = _alerta(cliente, cabecera_agente, payload_c1)
     with Session(bd_temporal) as sesion:
         lineas = sesion.scalars(select(Notificacion)).one().payload["mensaje"].splitlines()
-    assert [l.split(":")[0] for l in lineas] == ["Evidencia", "MITRE", "Razonamiento", "Acción", "Informe completo"]
+    assert [l.split(":")[0] for l in lineas] == ["Evidencia", "MITRE", "Razonamiento", "Acción recomendada", "Informe completo"]
+    assert lineas[3] == "Acción recomendada: Cuarentena de puertos (confianza 0.80)"  # Fase 9a: confirmado, 80/135
     assert lineas[-1] == f"Informe completo: http://localhost:8081/#/incidentes/{i.id}"
 
 

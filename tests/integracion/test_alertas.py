@@ -151,5 +151,5 @@ def test_auditoria_integra_tras_las_alertas(cliente, cabecera_agente, cabecera_o
     respuesta = cliente.get("/api/auditoria/verificar", headers=cabecera_operador)
     assert respuesta.status_code == 200
     # alerta_recibida + alerta_agrupada + verificacion_informe (Fase 6.8b) + explicacion_generada (Fase 2)
-    # + notificacion_omitida (Fase 3)
-    assert respuesta.json() == {"integra": True, "filas": 5, "primera_rota": None}
+    # + notificacion_omitida (Fase 3) + recomendacion_creada (Fase 9a: confirmado 0.80 → cuarentena_puertos)
+    assert respuesta.json() == {"integra": True, "filas": 6, "primera_rota": None}

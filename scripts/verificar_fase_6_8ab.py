@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-Verificación end-to-end de la Fase 6.8a+b (dictamen determinista + informe XAI).
+Verificación end-to-end de la Fase 6.8a+b (dictamen determinista + informe XAI) y de la 9a (confianza
+calculada y escalera de respuesta). Corre en modo recomendar: nada se ejecuta sin el operador (Fase 9b).
 
 Prueba el sistema DESDE AFUERA, como lo usaría Ryu y el operador: envía alertas
 reales al agente, desbloquea por la API y revisa el informe guardado. No importa
@@ -224,9 +225,21 @@ def verificar_informe(caso, inc, payload, con_llm):
           f"{tr.get('veredicto_final')} vs {inc.get('veredicto')}")
     check(G, "acción reversible declarada", tr.get("reversible") is True, str(tr.get("reversible")))
     check(G, "nunca se propone desbloquear", "desbloque" not in json.dumps(tr).lower() or tr.get("accion_propuesta") != "desbloquear", "")
-    if inc.get("veredicto") == "confirmado":
-        check(G, "confirmado ⇒ nunca cuarentena", tr.get("accion_propuesta") != "pasar_a_cuarentena"
-              and "cuarentena" not in str(tr.get("accion_final", "")), f"{tr.get('accion_propuesta')} / {tr.get('accion_final')}")
+    # Fase 9a: confianza calculada (recalculada aquí a mano) y escalera
+    cc, esc = tr.get("confianza_calculada") or {}, tr.get("escalera") or {}
+    check(G, "informe 1.1 con confianza calculada y escalera", inf.get("version_informe") == "1.1" and bool(cc) and bool(esc), "")
+    if cc.get("total") is not None:
+        termino = 0.5 * cc["s"] if cc["veredicto_usado"] == "confirmado" else 0.5 * (1 - cc["s"])
+        a_mano = round(min(max(termino + 0.5 - cc["penalizacion"], 0), 1) + 1e-9, 2)
+        check(G, "confianza recalculada a mano = total", a_mano == cc["total"], f"{a_mano} vs {cc['total']} · {cc.get('formula')}")
+    else:
+        check(G, "indeterminado ⇒ mantener_drop", tr.get("accion_propuesta") == "mantener_drop", str(tr.get("accion_propuesta")))
+    check(G, "acción de la escalera = acción propuesta", esc.get("accion_recomendada") == tr.get("accion_propuesta"),
+          f"{esc.get('accion_recomendada')} vs {tr.get('accion_propuesta')}")
+    if "confirmado" in (inc.get("veredicto"), cc.get("veredicto_usado")):
+        check(G, "confirmado ⇒ nunca limitar_tasa", tr.get("accion_propuesta") != "limitar_tasa", str(tr.get("accion_propuesta")))
+    check(G, "modo recomendar: nada se ejecuta sin el operador", str(tr.get("accion_final")) in ("ninguna", "recomendada", "None"),
+          str(tr.get("accion_final")))
     check(G, "resumen ≤ 600 caracteres", len(inc.get("explicacion") or "") <= 600, f"{len(inc.get('explicacion') or '')}")
     return inf
 
@@ -284,11 +297,14 @@ def main():
         check("B", "dictamen atenuante", inc.get("dictamen_historial") == "atenuante", inc.get("dictamen_historial"))
         check("B", "veredicto final indeterminado", inc.get("veredicto") == "indeterminado", inc.get("veredicto"))
         tr = g(inc, "informe.trazabilidad_y_accion", {})
-        check("B", "acción propuesta cuarentena por dictamen",
-              tr.get("accion_propuesta") == "pasar_a_cuarentena" and tr.get("origen_accion") == "dictamen",
-              f"{tr.get('accion_propuesta')} / {tr.get('origen_accion')}")
-        check("B", "confianza de la acción 0.6", abs(float(tr.get("confianza_accion") or 0) - 0.6) < 1e-6, str(tr.get("confianza_accion")))
-        check("B", "política: recomendación (umbral 0.85)", g(tr, "decision_politica.resultado") == "recomendar",
+        # Fase 9a: atenuante → como máximo limitar_tasa (con reglas: indeterminado → mantener_drop)
+        accion_b = tr.get("accion_propuesta")
+        check("B", "atenuante: como máximo limitar_tasa", accion_b in ("mantener_drop", "limitar_tasa"), str(accion_b))
+        if not con_llm:
+            check("B", "reglas: indeterminado ⇒ mantener_drop sin confianza",
+                  accion_b == "mantener_drop" and tr.get("confianza_accion") is None, f"{accion_b} / {tr.get('confianza_accion')}")
+        check("B", "política coherente con la acción",
+              g(tr, "decision_politica.resultado") == ("recomendar" if accion_b == "limitar_tasa" else "descartar"),
               str(tr.get("decision_politica")))
         hist = g(inc, "contexto_usado.historial_host", [])
         check("B", "historial con 2 FP del operador", sum(1 for h in hist if h.get("clasificacion_operador") == "falso_positivo") >= 2, "")
@@ -313,7 +329,7 @@ def main():
             inc = esperar(i)
             check("D", "dictamen agravante", inc.get("dictamen_historial") == "agravante", inc.get("dictamen_historial"))
             check("D", "veredicto final confirmado", inc.get("veredicto") == "confirmado", inc.get("veredicto"))
-            check("D", "acción forzada a mantener", g(inc, "informe.trazabilidad_y_accion.accion_propuesta") == "mantener", "")
+            check("D", "agravante ⇒ mantener_drop", g(inc, "informe.trazabilidad_y_accion.accion_propuesta") == "mantener_drop", "")
             verificar_informe("D", inc, p, con_llm)
 
         # ---------- E. Agravante por campaña (≥ 2 hosts confirmados en la ventana)

@@ -115,7 +115,8 @@ def test_auditoria_integra_con_notificaciones(cliente, cabecera_agente, cabecera
 
     verificacion = cliente.get("/api/auditoria/verificar", headers=cabecera_operador).json()
     # alerta_recibida + verificacion_informe (Fase 6.8b) + explicacion_generada + notificacion_enviada + notificacion_fallida
-    assert verificacion == {"integra": True, "filas": 5, "primera_rota": None}
+    # + recomendacion_creada (Fase 9a: confirmado 0.80 → cuarentena_puertos)
+    assert verificacion == {"integra": True, "filas": 6, "primera_rota": None}
 
 
 def test_usa_appscript_timeout_configurado(cliente, cabecera_operador, apps_script, monkeypatch):

@@ -52,7 +52,8 @@ def test_apagar_el_llm_por_api_aplica_sin_reiniciar(
     assert respuesta.json() == {"LLM_HABILITADO": False, "DEDUP_SEGUNDOS": 60, "CONTEXTO_HABILITADO": False,
                                 "HISTORIAL_DIAS": 30, "CAMPANA_MINUTOS": 30,  # Fase 6.7: + contexto dinámico
                                 "MODO_DECISION": "recomendar", "UMBRAL_CONFIANZA": 0.85, "MAX_ACCIONES_POR_MIN": 3,
-                                "HOSTS_PROTEGIDOS": [], "RECOMENDACION_TTL_MIN": 60}  # Fase 6.8: + motor de políticas
+                                "HOSTS_PROTEGIDOS": [], "RECOMENDACION_TTL_MIN": 60,  # Fase 6.8: + motor de políticas
+                                "ESCALON_HITL": 0.7, "ESCALON_VLAN": 0.95}  # Fase 9a: + escalera
 
     payload_c1["host_origen"] = "10.0.0.4"
     assert _fuente(bd_temporal, _alerta(cliente, cabecera_agente, payload_c1)) == ("reglas", "llm_deshabilitado")

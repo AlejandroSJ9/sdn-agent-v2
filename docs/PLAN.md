@@ -425,9 +425,9 @@ Sin nuevas features.
 ---
 
 ## Fuera del MVP (van a "Recomendaciones" del documento)
-RAG con MITRE ATT&CK, inventario manual de hosts, perfil de comportamiento por host calculado en Ryu, uso de contexto_topologico (ceguera topológica), redirección a VLAN/honeypot, anonimización de IPs por hash antes de enviar al LLM, modelo local, aprobación humana antes del bloqueo, alta disponibilidad del controlador.
+RAG con MITRE ATT&CK, inventario manual de hosts, perfil de comportamiento por host calculado en Ryu, uso de contexto_topologico (ceguera topológica), anonimización de IPs por hash antes de enviar al LLM, modelo local, aprobación humana antes del bloqueo, alta disponibilidad del controlador.
 
-Nota: la cuarentena de puertos administrativos (A6) SÍ entra, como opción de la Fase 6.8; lo que queda fuera es la redirección a VLAN o honeypot.
+Nota: la cuarentena de puertos administrativos (A6) SÍ entra, como opción de la Fase 6.8. La limitación de tasa (A7) y la VLAN de cuarentena (A8) entran por requerimiento de la tutora en la Fase 9 (9a: solo recomendación; 9b: se especifican en docs/ajustes.md y se ejecutan).
 
 ## Riesgos y mitigación
 | Riesgo | Mitigación |

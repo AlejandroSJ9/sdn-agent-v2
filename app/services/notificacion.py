@@ -62,6 +62,8 @@ _ACCION_TEXTO = {"pasar_a_cuarentena": "pasar a cuarentena", "escalar_a_drop": "
 
 def _linea_accion(incidente: IncidenteSalida) -> str:
     """Una línea con lo que decidió la política (C7)."""
+    if incidente.informe and incidente.informe["trazabilidad_y_accion"].get("escalera"):  # Fase 9a
+        return informe_svc.linea_accion(incidente.informe["trazabilidad_y_accion"])
     accion = _ACCION_TEXTO.get(incidente.accion_propuesta or "")
     if incidente.accion_final == "pasar_a_cuarentena":
         return "Acción: pasado a cuarentena automáticamente por la política"

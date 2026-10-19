@@ -3,6 +3,7 @@
 Estados: pendiente → aprobada → ejecutada | fallida, pendiente → rechazada, pendiente → expirada
 (tras RECOMENDACION_TTL_MIN; se revisa al listar, al resolver y al arrancar). Cambiar MODO_DECISION
 a solo_explicar no borra las pendientes: el operador todavía puede aprobarlas.
+Fase 9b: aprobar ejecuta la acción (las de la escalera y las heredadas de la 6.8) por acciones.ejecutar.
 """
 
 from datetime import datetime, timedelta, timezone

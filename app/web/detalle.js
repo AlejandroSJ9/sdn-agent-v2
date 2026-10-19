@@ -5,7 +5,7 @@ import { api } from "./api.js";
 import { abrirModal } from "./bloqueados.js";
 import { contenidoContexto } from "./contexto.js";
 import { $, badge, badgeDictamen, badgeVeredicto, el, hora, mensaje, mono, vaciar } from "./dom.js";
-import { lineaTiempo, tarjeta, tarjetasInforme } from "./informe.js";
+import { lineaTiempo, resumenEscalera, tarjeta, tarjetasInforme } from "./informe.js";
 import { contenidoDecision } from "./recomendaciones.js";
 
 const SEVERIDAD = { critica: "CRÍTICA", alta: "ALTA", media: "MEDIA" };
@@ -35,9 +35,18 @@ function avisoFuente(i) {
   return null;
 }
 
-function cabecera(i, bloqueados) {
+// Fase 9b: si la reversión a DROP total también falló, el operador debe verlo de inmediato.
+const ESTADO_DESCONOCIDO = "Ryu no confirmó el DROP total";
+
+function avisoEstadoDesconocido(i) {
+  const motivo = (i.motivos_politica ?? []).find((m) => m.includes(ESTADO_DESCONOCIDO));
+  return motivo ? el("p", { class: "aviso-franja" }, `¡ATENCIÓN! ${ESTADO_DESCONOCIDO}: verifique el host en Ryu. (${motivo})`) : null;
+}
+
+function cabecera(i, bloqueados, abiertos) {
   const bloqueado = bloqueados !== null && bloqueados.some((h) => h.ip === i.host_origen);
   const confianza = i.confianza === null || i.confianza === undefined ? "—" : i.confianza.toFixed(2);
+  const traza = i.informe?.trazabilidad_y_accion;
   return el("header", { class: "cabecera-detalle" },
     el("div", { class: "fila" },
       el("a", { href: volverA, class: "boton-enlace" }, "← Volver"),
@@ -49,10 +58,11 @@ function cabecera(i, bloqueados) {
       campo("Veredicto final", badgeVeredicto(i.veredicto)),
       campo("Severidad", i.severidad ? badge(SEVERIDAD[i.severidad] ?? i.severidad, i.severidad) : badge("—", "info")),
       campo("Dictamen", badgeDictamen(i.dictamen_historial)),
-      campo("Acción", mono(i.accion_propuesta ?? "—"), " → ", mono(i.accion_final ?? "—")),
-      campo("Confianza", mono(confianza)),
+      ...(traza?.escalera ? [campo("Acción recomendada", resumenEscalera(traza, abiertos.has("escalera")))]  // Fase 9a
+        : [campo("Acción", mono(i.accion_propuesta ?? "—"), " → ", mono(i.accion_final ?? "—")), campo("Confianza", mono(confianza))]),
       campo("Bloqueo", estadoBloqueo(i, bloqueados)),
       campo("Switch", mono(i.dpid_switch ?? "—"))),
+    avisoEstadoDesconocido(i),
     avisoFuente(i));
 }
 
@@ -126,7 +136,7 @@ export async function mostrarDetalle(id, desde = null) {
     // Un refresco en vivo no debe cerrar lo que el operador desplegó.
     const abiertos = new Set([...pagina.querySelectorAll("details[open]")].map((d) => d.dataset.clave));
     vaciar(pagina,
-      cabecera(i, bloqueados),
+      cabecera(i, bloqueados, abiertos),
       resumen(i),
       el("div", { class: "grilla-xai" }, i.informe ? tarjetasInforme(i, extrasTrazabilidad(i)) : tarjetasPrevias(i)),
       plegable("contexto", "Contexto usado (historial del host y actividad de la red)", abiertos, ...contenidoContexto(i)),
