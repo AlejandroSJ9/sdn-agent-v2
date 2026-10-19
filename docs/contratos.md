@@ -143,7 +143,12 @@ de la salida confirmado → mantener_drop (el diagnóstico del LLM contradice el
 Un veredicto confirmado NUNCA lleva a limitar_tasa: si ocurre, se descarta y se audita.
 
 Siguen vigentes: HOSTS_PROTEGIDOS, MAX_ACCIONES_POR_MIN, RECOMENDACION_TTL_MIN y solo_explicar (ni recomienda).
-UMBRAL_CONFIANZA se conserva como umbral de ejecución de la Fase 9b.
-Fase 9a: toda acción distinta de mantener_drop queda como RECOMENDACIÓN, incluso en autonomo_acotado; no se
-ejecuta nada en Ryu y aprobarla responde 409. mantener_drop nunca genera recomendación.
+UMBRAL_CONFIANZA quedó retirado en la Fase 9b: ESCALON_HITL es el único umbral. La clave se acepta sin efecto por compatibilidad.
+Fase 9b: en autonomo_acotado la acción se EJECUTA si se cumplen todas: Ryu declara la capacidad (A6 cuarentena_puertos,
+A7 limitar_tasa, A8 cuarentena_vlan), el host no está en HOSTS_PROTEGIDOS, no se supera MAX_ACCIONES_POR_MIN y el host
+sigue en DROP total. Si falla alguna, queda como RECOMENDACIÓN con sus motivos; en recomendar, aprobarla la ejecuta.
+Después de cada acción el agente verifica el modo en Ryu; si no coincide, hay timeout o error, revierte a DROP total.
+Si la reversión también falla, se registra accion_estado_desconocido y se avisa en el panel y el correo.
+mantener_drop nunca ejecuta ni genera recomendación. En el laboratorio la ejecución es simulada.
+Solo acciones.py llama a Ryu para estas acciones; desbloquear sigue siendo exclusivo del operador.
 ```

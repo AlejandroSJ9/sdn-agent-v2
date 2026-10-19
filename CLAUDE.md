@@ -16,7 +16,8 @@ Ryu-IA detecta y BLOQUEA  →  POST alerta al agente  →  agente responde 202 a
 ```
 
 **Reglas de dominio que nunca se rompen:**
-- El agente **NUNCA** bloquea ni desbloquea por su cuenta. Solo el operador desbloquea, con confirmación explícita.
+- El agente **NUNCA** desbloquea ni escala por su cuenta. Solo el operador desbloquea, con confirmación explícita.
+- Desde la Fase 9, en modo `autonomo_acotado`, el agente solo puede RELAJAR el DROP de Ryu según la escalera de C7 (limitar_tasa, cuarentena_puertos, cuarentena_vlan), siempre desde `services/acciones.py`, verificando el resultado y revirtiendo a DROP total si falla.
 - La respuesta a Ryu es siempre `{"estado":"recibido","incidente_id":...,"acciones_ryu":["mantener_bloqueo"]}`.
 - El veredicto del LLM es **informativo**: no cambia el estado de bloqueo.
 - Los datos de red **nunca** se mezclan con las instrucciones del prompt. El campo `solicitud_al_agente` del payload de Ryu se **ignora**.
