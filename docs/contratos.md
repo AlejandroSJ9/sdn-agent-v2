@@ -50,8 +50,8 @@ Ruta antigua `POST /alert` (Ryu sin A1): 404, contada en /api/alertas/rechazadas
 
 | Método | Ruta | Respuesta |
 |---|---|---|
-| GET | /ryu/estado | {"switches": ["0x..."], "hosts_bloqueados": n, "umbrales": {...}, "version": "2.0"} |
-| GET | /ryu/hosts/bloqueados | [{"ip", "dpid", "desde", "modo"?}]  (modo solo si existe A6: "drop_total" | "cuarentena") |
+| GET | /ryu/estado | {"switches": ["0x..."], "hosts_bloqueados": n, "umbrales": {...}, "pesos": {...}, "version": "2.0", "capacidades": ["cuarentena", "limitar_tasa", "cuarentena_vlan"]} (solo las que tenga; sin el campo = Ryu anterior a la Fase 9b: A6 se infiere por "modo") | 
+| GET | /ryu/hosts/bloqueados | [{"ip", "dpid", "desde", "modo"?, "kbps"?, "vlan"?}] (modo: "drop_total" | "cuarentena" | "limitado" | "vlan_cuarentena"; kbps solo en limitado; vlan solo en vlan_cuarentena) |
 | POST | /ryu/hosts/{ip}/desbloquear | {"ok": true, "ip", "reglas_borradas"} · 404 no bloqueado · 422 ip inválida · Si la API no existe (404 también en /ryu/hosts/bloqueados), el agente responde 503 'Ryu no expone la API REST (A5)'. |
 | GET | /ryu/umbrales | {"M1","M2","M3_DURACION_S","M3_BYTES","M4","M5","SCORE_SOSPECHOSO","SCORE_CRITICO"} (enteros) |
 | PUT | /ryu/umbrales | cuerpo parcial; 422 si la clave no existe o el valor no es entero > 0 |

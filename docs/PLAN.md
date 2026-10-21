@@ -20,9 +20,14 @@
 | 6.7 | Contexto dinámico desde el historial + clasificación del operador | No | Sí (4 corridas) | ⏳ |
 | 6.8 | Decisión acotada del LLM: propuesta + motor de políticas + modos | No (sin A6 queda en `recomendar`) | Sí | ⏳ |
 | 6.9 | Evaluación de decisiones (acciones esperadas, daño autoinfligido) | No | Sí | ⏳ |
+Cancelada (se usa Laboratorio + Comparar corridas) de 6.6 - 6.9.
+
 | 7 | Integración real Mininet + scripts de ataque | **Sí (A1–A5; A6 opcional)** | Sí | ⏳ |
 | 8 | Evaluación final (objetivo 3) | Sí | Sí | ⏳ |
 | Libre | Rediseño visual SOC (solo presentación) | No | No | ⏳ |
+| 6.10 | QA previo a la integración (F1–F6: Ryu sin A5, ruta /alert, tamaño, respaldo visible, veredicto_llm) | No | No | ✅ |
+| 9a | Confianza calculada y escalera de respuesta (recomendación) | No | Sí | ✅ |
+| 9b | Ejecución de la escalera contra el mock (A6, A7, A8) con verificación y reversión | Mock | Sí | ✅ |
 
 **Datos experimentales hasta ahora (Fase 6):** con solo métricas, LLM y reglas obtienen la misma exactitud (9/10 en decidibles) y coinciden en 17 de 18 veredictos; el LLM tarda ~600 veces más. Los casos legítimos no son distinguibles sin contexto. Esto motiva las fases 6.7–6.9.
 
