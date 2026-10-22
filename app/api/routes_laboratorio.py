@@ -39,7 +39,7 @@ def iniciar_corrida(entrada: CorridaEntrada, tareas: BackgroundTasks) -> dict:
             tareas.add_task, variante=entrada.variante, modo_decision=entrada.modo_decision,
             umbral_confianza=entrada.umbral_confianza,
         )
-    except laboratorio.CasoDesconocido as error:
+    except (laboratorio.CasoDesconocido, laboratorio.ModoRetirado) as error:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(error)) from error
     except laboratorio.CorridaRechazada as error:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(error)) from error

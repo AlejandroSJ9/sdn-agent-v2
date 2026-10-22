@@ -98,18 +98,6 @@ def contar_pendientes() -> int:
         return sesion.scalar(select(func.count(Recomendacion.id)).where(Recomendacion.estado == "pendiente"))
 
 
-def acciones_reales_de_la_politica_desde(desde: datetime) -> int:
-    """Acciones ejecutadas de verdad por la política (no simuladas ni del operador), para MAX_ACCIONES_POR_MIN."""
-    consulta = select(func.count(Auditoria.id)).where(
-        Auditoria.evento == "accion_ejecutada",
-        Auditoria.ts >= desde,
-        func.json_extract(Auditoria.datos, "$.origen") == "politica",
-        func.json_extract(Auditoria.datos, "$.resultado") == "ejecutada",
-    )
-    with SesionLocal() as sesion:
-        return sesion.scalar(consulta)
-
-
 def acciones_de_incidente(incidente_id: int) -> list[dict[str, Any]]:
     """Acciones ejecutadas, simuladas o fallidas del incidente, leídas de la auditoría (solo inserción)."""
     consulta = (

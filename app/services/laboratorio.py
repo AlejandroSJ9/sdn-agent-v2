@@ -38,6 +38,10 @@ class CasoDesconocido(ValueError):
     """Se pidió un id de escenario que no existe (422)."""
 
 
+class ModoRetirado(ValueError):
+    """Se pidió modo_decision=autonomo_acotado, retirado en la Fase D1 (422)."""
+
+
 @lru_cache
 def cargar_escenarios() -> tuple[dict, ...]:
     return tuple(json.loads(RUTA_ESCENARIOS.read_text(encoding="utf-8"))["casos"])
@@ -70,10 +74,12 @@ def iniciar_corrida(
     enviar_correos: bool,
     programar: Callable[..., Any],
     variante: str = "sin_contexto",
-    modo_decision: str = "autonomo_acotado",
+    modo_decision: str = "recomendar",
     umbral_confianza: float = 0.85,
 ) -> dict[str, Any]:
     """Valida, reserva la corrida y la agenda en segundo plano con `programar`."""
+    if modo_decision == configuracion.MODO_RETIRADO:
+        raise ModoRetirado(configuracion.MENSAJE_MODO_RETIRADO)
     seleccion = _seleccionar(casos, conjunto)
     total = len(seleccion) * repeticiones
     costo = total if usar_llm else 0

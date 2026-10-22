@@ -16,7 +16,7 @@ def _a_dict(fila) -> dict[str, Any]:
 def crear_corrida(
     casos: list[str], conjunto: str | None, usar_llm: bool, enviar_correos: bool, repeticiones: int, costo: int,
     variante: str = "sin_contexto", version_prompt: str = "v2.2-sin-contexto",
-    modo_decision: str = "autonomo_acotado", umbral_confianza: float = 0.85,
+    modo_decision: str = "recomendar", umbral_confianza: float = 0.85,
 ) -> int:
     with SesionLocal.begin() as sesion:
         corrida = Corrida(

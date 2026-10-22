@@ -1,8 +1,8 @@
-"""Fase 9b: ejecución de la escalera contra el mock de Ryu (A6, A7, A8), verificación posterior, reversión
-automática a DROP total, estado desconocido, límites de C7, operador y laboratorio simulado."""
+"""Fase 9b + D1: ejecución de la escalera contra el mock de Ryu (A6, A7, A8). El agente solo recomienda: cada
+acción se ejecuta al APROBARLA, con verificación posterior, reversión automática a DROP total y estado desconocido.
+También el motivo de capacidad, las acciones del operador y el laboratorio simulado."""
 
 import json
-from datetime import datetime, timezone
 
 import httpx
 import mock_ryu
@@ -12,7 +12,6 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.db import repository_acciones
 from app.db.models import Auditoria, Notificacion, Recomendacion
 from app.integrations.llm import RespuestaLLM
 from app.integrations.ryu import ClienteRyu
@@ -65,11 +64,6 @@ def llm(bd_temporal, monkeypatch):
     return instalar
 
 
-@pytest.fixture
-def autonomo(cliente, cabecera_operador):
-    assert cliente.put("/api/config", json={"MODO_DECISION": "autonomo_acotado"}, headers=cabecera_operador).status_code == 200
-
-
 def _alerta(cliente, cabecera, payload, host="10.0.0.3", puntaje=None) -> dict:
     cuerpo = {**payload, "host_origen": host}
     if puntaje is not None:
@@ -88,52 +82,57 @@ def _recomendaciones(motor) -> list[Recomendacion]:
         return list(sesion.scalars(select(Recomendacion).order_by(Recomendacion.id)))
 
 
+def _aprobar(cliente, motor, cabecera_operador) -> dict:
+    """Aprueba la única recomendación pendiente (la de la última alerta)."""
+    (pendiente,) = [r for r in _recomendaciones(motor) if r.estado == "pendiente"]
+    return cliente.post(f"/api/recomendaciones/{pendiente.id}/aprobar", headers=cabecera_operador).json()
+
+
 def _correo(motor) -> str:
     with Session(motor) as sesion:
         return sesion.scalars(select(Notificacion).order_by(Notificacion.id.desc())).first().payload["mensaje"]
 
 
-# ---- Ejecución por escalón en autonomo_acotado ----
+# ---- Por escalón: queda como recomendación y aprobarla la ejecuta ----
 
 @pytest.mark.parametrize(("salida", "puntaje", "accion", "modo", "texto"), [
     ({"veredicto": "indeterminado"}, 60, "mantener_drop", "drop_total", "Acción recomendada: Mantener DROP total"),
-    ({"veredicto": "falso_positivo"}, 60, "limitar_tasa", "limitado", "Acción ejecutada: Limitar tasa (confianza 0.78)"),
-    ({"veredicto": "confirmado"}, None, "cuarentena_puertos", "cuarentena", "Acción ejecutada: Cuarentena de puertos (confianza 0.80)"),
-    ({"veredicto": "confirmado"}, 135, "cuarentena_vlan", "vlan_cuarentena", "Acción ejecutada: Cuarentena en VLAN (confianza 1.00)"),
+    ({"veredicto": "falso_positivo"}, 60, "limitar_tasa", "limitado", "Acción recomendada: Limitar tasa (confianza 0.78)"),
+    ({"veredicto": "confirmado"}, None, "cuarentena_puertos", "cuarentena", "Acción recomendada: Cuarentena de puertos (confianza 0.80)"),
+    ({"veredicto": "confirmado"}, 135, "cuarentena_vlan", "vlan_cuarentena", "Acción recomendada: Cuarentena en VLAN (confianza 1.00)"),
 ])
-def test_autonomo_ejecuta_cada_escalon_y_verifica_el_modo(
-    cliente, bd_temporal, cabecera_agente, payload_c1, llm, ryu, autonomo, salida, puntaje, accion, modo, texto
+def test_cada_escalon_se_recomienda_y_al_aprobarlo_se_ejecuta_y_verifica(
+    cliente, bd_temporal, cabecera_agente, cabecera_operador, payload_c1, llm, ryu, salida, puntaje, accion, modo, texto
 ):
     red = ryu()
     llm(**salida)
     i = _alerta(cliente, cabecera_agente, payload_c1, puntaje=puntaje)
-    assert (i["accion_propuesta"], red.modo()) == (accion, modo)
-    assert texto in _correo(bd_temporal)
+    assert (i["accion_propuesta"], red.modo()) == (accion, "drop_total")
+    assert red.acciones_de_red() == [] and texto in _correo(bd_temporal)  # el agente no ejecutó nada
     if accion == "mantener_drop":
-        assert red.acciones_de_red() == [] and i["decision_politica"] == "descartar"
-    else:
-        assert (i["decision_politica"], i["accion_final"]) == ("ejecutar", accion)
-        assert red.acciones_de_red() == [f"POST /ryu/hosts/10.0.0.3/{ {'cuarentena_puertos': 'cuarentena'}.get(accion, accion)}"]
-        (ejecutada,) = _auditados(bd_temporal, "accion_ejecutada")
-        assert (ejecutada["accion"], ejecutada["origen"], ejecutada["modo"]) == (accion, "politica", modo)
-        assert _recomendaciones(bd_temporal) == []
+        assert i["decision_politica"] == "descartar" and _recomendaciones(bd_temporal) == []
+        return
+    assert (i["decision_politica"], i["accion_final"], i["motivos_politica"]) == ("recomendar", "recomendada", [])
+    aprobada = _aprobar(cliente, bd_temporal, cabecera_operador)
+    assert (aprobada["estado"], red.modo()) == ("ejecutada", modo)
+    assert red.acciones_de_red() == [f"POST /ryu/hosts/10.0.0.3/{ {'cuarentena_puertos': 'cuarentena'}.get(accion, accion)}"]
+    (ejecutada,) = _auditados(bd_temporal, "accion_ejecutada")
+    assert (ejecutada["accion"], ejecutada["origen"], ejecutada["modo"]) == (accion, "operador", modo)
+    assert cliente.get(f"/api/incidentes/{i['id']}", headers=cabecera_operador).json()["accion_final"] == accion
     if accion == "limitar_tasa":
         assert red.bloqueados["10.0.0.3"]["kbps"] == 1000  # LIMITE_TASA_KBPS por defecto
 
 
-# ---- Fallos de Ryu: el host nunca queda en un estado intermedio desconocido ----
+# ---- Fallos de Ryu al aprobar: el host nunca queda en un estado intermedio desconocido ----
 
-def test_fallo_transaccional_de_ryu_deja_drop_total_y_recomienda(
-    cliente, bd_temporal, cabecera_agente, payload_c1, ryu, autonomo
+def test_fallo_transaccional_de_ryu_deja_drop_total(
+    cliente, bd_temporal, cabecera_agente, cabecera_operador, payload_c1, ryu
 ):
     red = ryu(fallas={"cuarentena": "error"})
-    i = _alerta(cliente, cabecera_agente, payload_c1)
-    assert (i["accion_final"], red.modo()) == ("fallida", "drop_total")
-    assert i["motivos_politica"] == ["falló la ejecución: http_500; el host sigue en DROP total"]
+    _alerta(cliente, cabecera_agente, payload_c1)
+    aprobada = _aprobar(cliente, bd_temporal, cabecera_operador)
+    assert (aprobada["estado"], aprobada["resultado"]["error"], red.modo()) == ("fallida", "http_500", "drop_total")
     assert "POST /ryu/hosts/10.0.0.3/bloqueo_total" not in red.rutas  # verificado: no hacía falta revertir
-    (recomendacion,) = _recomendaciones(bd_temporal)
-    assert recomendacion.accion == "cuarentena_puertos" and recomendacion.estado == "pendiente"
-    assert "falló la ejecución; el host sigue en DROP total" in _correo(bd_temporal)
     assert _auditados(bd_temporal, "accion_fallida")[0]["reversion"] == "no_necesaria"
 
 
@@ -143,67 +142,52 @@ def test_fallo_transaccional_de_ryu_deja_drop_total_y_recomienda(
     ("lento", 0.3, "timeout"),                    # timeout ambiguo: se revierte sin fiarse de la lectura
 ])
 def test_error_modo_distinto_o_timeout_revierten_a_drop_total(
-    cliente, bd_temporal, cabecera_agente, payload_c1, ryu, autonomo, falla, tope, error
+    cliente, bd_temporal, cabecera_agente, cabecera_operador, payload_c1, ryu, falla, tope, error
 ):
     red = ryu(tope=tope, fallas={"cuarentena": falla})
-    i = _alerta(cliente, cabecera_agente, payload_c1)
-    assert (i["accion_final"], red.modo()) == ("fallida", "drop_total")
-    assert i["motivos_politica"][0].startswith(f"falló la ejecución: {error}")
+    _alerta(cliente, cabecera_agente, payload_c1)
+    aprobada = _aprobar(cliente, bd_temporal, cabecera_operador)
+    assert (aprobada["estado"], red.modo()) == ("fallida", "drop_total")
+    assert aprobada["resultado"]["error"].startswith(error)
     (fallida,) = _auditados(bd_temporal, "accion_fallida")
     assert fallida["reversion"] in ("revertida", "no_necesaria") and not fallida.get("estado_desconocido")
     if falla != "no_aplica":
         assert "POST /ryu/hosts/10.0.0.3/bloqueo_total" in red.rutas
         (revertida,) = _auditados(bd_temporal, "accion_revertida")
         assert (revertida["origen"], revertida["accion_fallida"]) == ("reversion_automatica", "cuarentena_puertos")
-    # la reversión no cuenta para el límite por minuto
-    assert repository_acciones.acciones_reales_de_la_politica_desde(datetime(2000, 1, 1, tzinfo=timezone.utc)) == 0
 
 
 def test_si_la_reversion_tambien_falla_queda_estado_desconocido_sin_reintentos(
-    cliente, bd_temporal, cabecera_agente, payload_c1, ryu, autonomo
+    cliente, bd_temporal, cabecera_agente, cabecera_operador, payload_c1, ryu
 ):
     red = ryu(fallas={"cuarentena": "aplica_y_error", "bloqueo_total": "error"})
-    i = _alerta(cliente, cabecera_agente, payload_c1)
+    _alerta(cliente, cabecera_agente, payload_c1)
+    aprobada = _aprobar(cliente, bd_temporal, cabecera_operador)
     assert red.modo() == "cuarentena" and red.rutas.count("POST /ryu/hosts/10.0.0.3/bloqueo_total") == 1  # un intento
-    assert acciones.ESTADO_DESCONOCIDO in i["motivos_politica"][0]
+    assert aprobada["estado"] == "fallida" and aprobada["resultado"]["estado_desconocido"] is True
     (desconocido,) = _auditados(bd_temporal, "accion_estado_desconocido")
     assert desconocido["accion"] == "cuarentena_puertos" and desconocido["error_reversion"] == "http_500"
-    assert "¡ATENCIÓN! Ryu no confirmó el DROP total: verifique el host" in _correo(bd_temporal)
-    assert _recomendaciones(bd_temporal)[0].estado == "pendiente"
 
 
-# ---- Condiciones de C7 ----
+def test_aprobar_sobre_un_host_que_ryu_no_tiene_bloqueado_falla_sin_tocar_la_red(
+    cliente, bd_temporal, cabecera_agente, cabecera_operador, payload_c1, ryu
+):
+    red = ryu()
+    _alerta(cliente, cabecera_agente, payload_c1, "10.0.0.9")  # no está bloqueado en el mock
+    aprobada = _aprobar(cliente, bd_temporal, cabecera_operador)
+    assert aprobada["estado"] == "fallida" and aprobada["resultado"]["error"] == "host no bloqueado en Ryu"
+    assert red.acciones_de_red() == []
 
-def test_sin_capacidad_a7_queda_como_recomendacion(cliente, bd_temporal, cabecera_agente, payload_c1, llm, ryu, autonomo):
+
+# ---- Capacidad (C7): queda como recomendación con el motivo ----
+
+def test_sin_capacidad_a7_queda_como_recomendacion_con_el_motivo(cliente, bd_temporal, cabecera_agente, payload_c1, llm, ryu):
     red = ryu(limitar_tasa=False)
     llm(veredicto="falso_positivo")
     i = _alerta(cliente, cabecera_agente, payload_c1, puntaje=60)
     assert (i["accion_propuesta"], i["decision_politica"], i["motivos_politica"]) == (
         "limitar_tasa", "recomendar", [politica.MOTIVO_SIN_A7])
     assert red.acciones_de_red() == [] and red.modo() == "drop_total"
-
-
-def test_host_protegido_queda_como_recomendacion(cliente, bd_temporal, cabecera_agente, cabecera_operador, payload_c1, ryu, autonomo):
-    red = ryu()
-    cliente.put("/api/config", json={"HOSTS_PROTEGIDOS": ["10.0.0.3"]}, headers=cabecera_operador)
-    i = _alerta(cliente, cabecera_agente, payload_c1)
-    assert i["motivos_politica"] == [politica.MOTIVO_PROTEGIDO] and red.acciones_de_red() == []
-
-
-def test_limite_por_minuto_y_fallo_de_ryu_quedan_como_recomendacion(
-    cliente, bd_temporal, cabecera_agente, cabecera_operador, payload_c1, ryu, autonomo
-):
-    """Recuperada de la 6.8 (se quitó en la 9a): el límite cuenta solo relajaciones reales de la política."""
-    red = ryu()
-    cliente.put("/api/config", json={"MAX_ACCIONES_POR_MIN": 1}, headers=cabecera_operador)
-    assert _alerta(cliente, cabecera_agente, payload_c1, "10.0.0.3")["accion_final"] == "cuarentena_puertos"
-    segundo = _alerta(cliente, cabecera_agente, payload_c1, "10.0.0.5")
-    assert segundo["motivos_politica"] == [politica.MOTIVO_LIMITE] and red.modo("10.0.0.5") == "drop_total"
-    cliente.put("/api/config", json={"MAX_ACCIONES_POR_MIN": 20}, headers=cabecera_operador)
-    tercero = _alerta(cliente, cabecera_agente, payload_c1, "10.0.0.9")  # no está bloqueado en el mock
-    assert tercero["accion_final"] == "fallida"
-    assert tercero["motivos_politica"][0].startswith("falló la ejecución: host no bloqueado en Ryu")
-    assert [r.estado for r in _recomendaciones(bd_temporal)] == ["pendiente", "pendiente"]
 
 
 def test_host_que_ya_no_esta_en_drop_total_no_se_toca(bd_temporal, ryu):

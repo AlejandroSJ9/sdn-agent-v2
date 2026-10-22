@@ -1,14 +1,15 @@
 """Acciones acotadas sobre Ryu (C2, Fase 9b): las de la escalera y la vuelta a DROP total. NUNCA desbloquea.
 
 _llamar() es el ÚNICO lugar del código que llama a ryu.cuarentena / limitar_tasa / cuarentena_vlan / bloqueo_total
-(tests/unit/test_unico_camino_desbloqueo.py), por decisión de la política, aprobación del operador o reversión.
+(tests/unit/test_unico_camino_desbloqueo.py), por aprobación o botón del operador, o por reversión (Fase D1: la
+política ya no ejecuta nada por su cuenta).
 En los incidentes del laboratorio no llama a Ryu: registra la acción como "simulada".
 
 Nunca se deja un host en un estado intermedio desconocido:
   1. antes de relajar, el host debe seguir en drop_total (se vuelve a leer en Ryu);
   2. después de cada acción se VERIFICA el modo con GET /ryu/hosts/bloqueados;
   3. ante error, timeout o modo distinto → reversión automática con bloqueo_total y verificación de drop_total
-     (la única acción de red que el agente hace solo fuera de la escalera; no cuenta para el límite por minuto);
+     (la única acción de red que el agente hace solo, y solo para volver a bloquear);
   4. si la reversión también falla → accion_estado_desconocido, sin reintentos en ciclo.
 """
 

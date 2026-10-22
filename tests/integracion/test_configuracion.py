@@ -51,8 +51,8 @@ def test_apagar_el_llm_por_api_aplica_sin_reiniciar(
     respuesta = cliente.put("/api/config", json={"LLM_HABILITADO": False}, headers=cabecera_operador)
     assert respuesta.json() == {"LLM_HABILITADO": False, "DEDUP_SEGUNDOS": 60, "CONTEXTO_HABILITADO": False,
                                 "HISTORIAL_DIAS": 30, "CAMPANA_MINUTOS": 30,  # Fase 6.7: + contexto dinámico
-                                "MODO_DECISION": "recomendar", "UMBRAL_CONFIANZA": 0.85, "MAX_ACCIONES_POR_MIN": 3,
-                                "HOSTS_PROTEGIDOS": [], "RECOMENDACION_TTL_MIN": 60,  # Fase 6.8: + motor de políticas
+                                "MODO_DECISION": "recomendar", "RECOMENDACION_TTL_MIN": 60,  # Fase 6.8: + motor de políticas
+                                # Fase D1: sin UMBRAL_CONFIANZA, MAX_ACCIONES_POR_MIN ni HOSTS_PROTEGIDOS (retiradas)
                                 "ESCALON_HITL": 0.7, "ESCALON_VLAN": 0.95}  # Fase 9a: + escalera
 
     payload_c1["host_origen"] = "10.0.0.4"
@@ -77,6 +77,17 @@ def test_cambiar_dedup_segundos_cambia_la_agrupacion(cliente, bd_temporal, cabec
 
 def test_put_config_sin_cambios_no_audita(cliente, bd_temporal, cabecera_operador):
     cliente.put("/api/config", json={"DEDUP_SEGUNDOS": 60, "LLM_HABILITADO": False}, headers=cabecera_operador)
+    with Session(bd_temporal) as sesion:
+        assert sesion.scalars(select(Auditoria)).all() == []
+
+
+def test_claves_retiradas_se_aceptan_sin_efecto(cliente, bd_temporal, cabecera_operador):
+    """Fase D1: UMBRAL_CONFIANZA, MAX_ACCIONES_POR_MIN y HOSTS_PROTEGIDOS llegan de clientes viejos → 200, nada cambia."""
+    antes = cliente.get("/api/config", headers=cabecera_operador).json()
+    retiradas = {"UMBRAL_CONFIANZA": 0.6, "MAX_ACCIONES_POR_MIN": 1, "HOSTS_PROTEGIDOS": ["10.0.0.3"]}
+    respuesta = cliente.put("/api/config", json=retiradas, headers=cabecera_operador)
+    assert respuesta.status_code == 200 and respuesta.json() == antes
+    assert not set(retiradas) & set(antes)
     with Session(bd_temporal) as sesion:
         assert sesion.scalars(select(Auditoria)).all() == []
 

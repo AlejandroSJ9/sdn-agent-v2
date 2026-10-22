@@ -1,5 +1,6 @@
-"""Decisión acotada (Fase 6.8, 9a, 9b): escalera → política → ejecución o recomendación, bandeja y laboratorio.
-La ejecución por escalón, los fallos de Ryu y la reversión están en test_ejecucion_escalera.py."""
+"""Decisión acotada (Fase 6.8, 9a, 9b, D1): escalera → política → recomendación, bandeja, compatibilidad con el modo
+autonomo_acotado retirado y laboratorio. La ejecución al aprobar, los fallos de Ryu y la reversión están en
+test_ejecucion_escalera.py."""
 
 import json
 from datetime import datetime, timedelta, timezone
@@ -12,11 +13,11 @@ from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.db import repository
+from app.db import repository, repository_operador
 from app.db.models import Auditoria, Incidente, Notificacion, Recomendacion
 from app.integrations.llm import RespuestaLLM
 from app.integrations.ryu import ClienteRyu
-from app.services import acciones, decision, operador, pipeline, politica
+from app.services import acciones, configuracion, decision, operador, pipeline, politica
 
 
 def _instalar_ryu(monkeypatch, cuarentena: bool) -> dict:
@@ -65,7 +66,7 @@ def test_modo_recomendar_crea_recomendacion_y_al_aprobarla_se_ejecuta(
     assert "Acción recomendada: Cuarentena de puertos (confianza 0.80)" in _ultimo_correo(bd_temporal)
     (recomendacion,) = _recomendaciones(bd_temporal)
     assert (recomendacion.estado, recomendacion.accion, recomendacion.confianza) == ("pendiente", "cuarentena_puertos", 0.8)
-    assert recomendacion.motivos_politica == [politica.MOTIVO_MODO]
+    assert recomendacion.motivos_politica == []
     assert ryu_a6["10.0.0.3"]["modo"] == "drop_total"
 
     aprobada = cliente.post(f"/api/recomendaciones/{recomendacion.id}/aprobar", headers=cabecera_operador).json()
@@ -76,22 +77,48 @@ def test_modo_recomendar_crea_recomendacion_y_al_aprobarla_se_ejecuta(
     assert [(a["accion"], a["origen"], a["resultado"]) for a in detalle["acciones"]] == [("cuarentena_puertos", "operador", "ejecutada")]
 
 
-def test_modo_autonomo_ejecuta_solo_y_lo_dice_el_correo(
-    cliente, bd_temporal, cabecera_agente, cabecera_operador, payload_c1, ryu_a6
+# ---- Compatibilidad: autonomo_acotado retirado en la Fase D1 ----
+
+def test_pedir_autonomo_acotado_por_api_responde_422_y_no_cambia_nada(cliente, bd_temporal, cabecera_operador):
+    respuesta = cliente.put("/api/config", json={"MODO_DECISION": "autonomo_acotado"}, headers=cabecera_operador)
+    assert (respuesta.status_code, respuesta.json()["detail"]) == (422, configuracion.MENSAJE_MODO_RETIRADO)
+    assert cliente.get("/api/config", headers=cabecera_operador).json()["MODO_DECISION"] == "recomendar"
+    with Session(bd_temporal) as sesion:
+        assert sesion.scalars(select(Auditoria).where(Auditoria.evento == "config_cambiada")).all() == []
+
+
+def test_autonomo_guardado_en_la_bd_arranca_en_recomendar_con_log_y_auditoria(
+    cliente, bd_temporal, cabecera_agente, cabecera_operador, payload_c1, ryu_a6, caplog
 ):
-    _config(cliente, cabecera_operador, MODO_DECISION="autonomo_acotado")
+    repository_operador.guardar_configuracion("MODO_DECISION", "autonomo_acotado")  # configuración de antes de la D1
+    assert cliente.get("/api/config", headers=cabecera_operador).json()["MODO_DECISION"] == "recomendar"
+    datos = configuracion.retirar_modo_autonomo()  # lo que hace el arranque
+    assert datos["origen"] == "configuracion_guardada" and "Fase D1" in caplog.text
+    assert repository_operador.leer_configuracion()["MODO_DECISION"] == "recomendar"
+    assert configuracion.retirar_modo_autonomo() is None  # ya migrado: no se repite
+    with Session(bd_temporal) as sesion:
+        (cambio,) = sesion.scalars(select(Auditoria).where(Auditoria.evento == "config_cambiada")).all()
+    assert (cambio.datos["anterior"], cambio.datos["nuevo"]) == ("autonomo_acotado", "recomendar")
     incidente = _alerta(cliente, cabecera_agente, payload_c1)
-    assert (incidente["decision_politica"], incidente["accion_final"], incidente["motivos_politica"]) == (
-        "ejecutar", "cuarentena_puertos", [])
-    assert ryu_a6["10.0.0.3"]["modo"] == "cuarentena" and _recomendaciones(bd_temporal) == []
-    assert "Acción ejecutada: Cuarentena de puertos (confianza 0.80)" in _ultimo_correo(bd_temporal)
+    assert (incidente["decision_politica"], incidente["accion_final"]) == ("recomendar", "recomendada")
+    assert ryu_a6["10.0.0.3"]["modo"] == "drop_total"
 
 
-def test_autonomo_sin_a6_queda_como_recomendacion(
-    cliente, bd_temporal, cabecera_agente, cabecera_operador, payload_c1, monkeypatch
+def test_autonomo_en_env_se_lee_como_recomendar(cliente, bd_temporal, cabecera_agente, payload_c1, ryu_a6, monkeypatch):
+    monkeypatch.setenv("MODO_DECISION", "autonomo_acotado")
+    monkeypatch.setenv("MAX_ACCIONES_POR_MIN", "3")  # claves retiradas en .env: se ignoran
+    monkeypatch.setenv("HOSTS_PROTEGIDOS", "[]")
+    get_settings.cache_clear()
+    assert configuracion.obtener()["MODO_DECISION"] == "recomendar"
+    assert configuracion.retirar_modo_autonomo()["origen"] == ".env"
+    incidente = _alerta(cliente, cabecera_agente, payload_c1)
+    assert incidente["decision_politica"] == "recomendar" and ryu_a6["10.0.0.3"]["modo"] == "drop_total"
+
+
+def test_sin_a6_queda_como_recomendacion_con_el_motivo(
+    cliente, bd_temporal, cabecera_agente, payload_c1, monkeypatch
 ):
     bloqueados = _instalar_ryu(monkeypatch, False)
-    _config(cliente, cabecera_operador, MODO_DECISION="autonomo_acotado")
     incidente = _alerta(cliente, cabecera_agente, payload_c1)
     assert incidente["decision_politica"] == "recomendar" and incidente["motivos_politica"] == ["sin capacidad A6"]
     (recomendacion,) = _recomendaciones(bd_temporal)
@@ -101,7 +128,6 @@ def test_autonomo_sin_a6_queda_como_recomendacion(
 def test_solo_explicar_detiene_toda_accion_automatica(
     cliente, bd_temporal, cabecera_agente, cabecera_operador, payload_c1, ryu_a6
 ):
-    _config(cliente, cabecera_operador, MODO_DECISION="autonomo_acotado")
     _config(cliente, cabecera_operador, MODO_DECISION="solo_explicar")  # interruptor de emergencia
     incidente = _alerta(cliente, cabecera_agente, payload_c1)
     assert (incidente["decision_politica"], incidente["accion_final"]) == ("descartar", "ninguna")
@@ -238,9 +264,9 @@ def test_recomendaciones_exigen_token(cliente):
 
 # ---- Laboratorio: siempre simulado (nunca llama a Ryu) ----
 # LG-05: reglas con atenuante → indeterminado → mantener_drop. AT-01: confirmado ≥ 0.70 → cuarentena_puertos,
-# ejecutada simulada (el laboratorio corre por defecto en autonomo_acotado y asume A6, A7 y A8).
+# recomendada simulada (el laboratorio corre por defecto en recomendar y asume A6, A7 y A8).
 RESULTADOS_LAB = {"LG-05": ("mantener_drop", "descartar", "ninguna"),
-                  "AT-01": ("cuarentena_puertos", "ejecutar", "cuarentena_puertos_simulada")}
+                  "AT-01": ("cuarentena_puertos", "recomendar", "recomendada_simulada")}
 
 
 def test_laboratorio_guarda_la_decision_simulada_sin_llamar_a_ryu(cliente, bd_temporal, cabecera_operador, monkeypatch):
@@ -256,6 +282,9 @@ def test_laboratorio_guarda_la_decision_simulada_sin_llamar_a_ryu(cliente, bd_te
 
     assert correr() == RESULTADOS_LAB
     assert correr(umbral_confianza=0.6) == RESULTADOS_LAB  # UMBRAL_CONFIANZA retirado: se acepta sin efecto
-    assert correr(modo_decision="recomendar")["AT-01"] == ("cuarentena_puertos", "recomendar", "recomendada_simulada")
+    assert correr(modo_decision="recomendar") == RESULTADOS_LAB
     assert all(r[1] == "descartar" for r in correr(modo_decision="solo_explicar").values())
     assert llamadas == [] and _recomendaciones(bd_temporal) == []  # el laboratorio no llena la bandeja
+    retirado = cliente.post("/api/laboratorio/corridas", headers=cabecera_operador,
+                            json={"casos": ["AT-01"], "modo_decision": "autonomo_acotado"})
+    assert (retirado.status_code, retirado.json()["detail"]) == (422, configuracion.MENSAJE_MODO_RETIRADO)

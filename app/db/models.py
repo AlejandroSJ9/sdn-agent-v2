@@ -156,7 +156,7 @@ class Corrida(Base):
     repeticiones: Mapped[int] = mapped_column(Integer)
     costo_estimado: Mapped[int] = mapped_column(Integer)
     variante: Mapped[str] = mapped_column(String(15), default="sin_contexto", server_default="sin_contexto")
-    modo_decision: Mapped[str] = mapped_column(String(20), default="autonomo_acotado", server_default="autonomo_acotado")
+    modo_decision: Mapped[str] = mapped_column(String(20), default="recomendar", server_default="recomendar")
     umbral_confianza: Mapped[float] = mapped_column(Float, default=0.85, server_default="0.85")
     version_prompt: Mapped[str] = mapped_column(String(30), default="v2.0-sin-contexto", server_default="v2.0-sin-contexto")
     resumen: Mapped[dict | None] = mapped_column(JSON)

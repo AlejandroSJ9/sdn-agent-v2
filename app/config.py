@@ -54,13 +54,10 @@ class Settings(BaseSettings):
     HISTORIAL_DIAS: int = 30
     CAMPANA_MINUTOS: int = 30
     # C7: motor de políticas (editables en caliente)
-    MODO_DECISION: str = "recomendar"  # solo_explicar | recomendar | autonomo_acotado
-    UMBRAL_CONFIANZA: float = 0.85  # retirado en la Fase 9b: se acepta sin efecto (compatibilidad)
+    MODO_DECISION: str = "recomendar"  # solo_explicar | recomendar (autonomo_acotado retirado en la D1 → recomendar)
     ESCALON_HITL: float = 0.70  # C7 (Fase 9a): debajo, decide el humano
     ESCALON_VLAN: float = 0.95  # C7: confirmado por encima → cuarentena_vlan
     LIMITE_TASA_KBPS: int = 1000  # A7 (Fase 9b): kbps de limitar_tasa; solo .env, sin edición en caliente
-    MAX_ACCIONES_POR_MIN: int = 3
-    HOSTS_PROTEGIDOS: str = "[]"  # lista JSON de IPv4
     RECOMENDACION_TTL_MIN: int = 60
     RATE_LIMIT_POR_MIN: int = 60
     ALERTA_MAX_BYTES: int = 65536  # tope del cuerpo de POST /api/alertas (413 si lo supera)

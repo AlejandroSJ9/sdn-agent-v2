@@ -3,7 +3,6 @@
 from typing import Annotated, Literal
 
 from pydantic import (
-    AfterValidator,
     BaseModel,
     ConfigDict,
     Field,
@@ -14,11 +13,6 @@ from pydantic import (
 )
 
 from app.schemas.alerta import IPv4
-
-
-def _sin_repetidos(hosts: list[str]) -> list[str]:
-    return list(dict.fromkeys(hosts))
-
 
 Motivo = Annotated[str, StringConstraints(strip_whitespace=True, min_length=5, max_length=200)]
 
@@ -41,14 +35,16 @@ class ConfigActualizar(BaseModel):
     HISTORIAL_DIAS: Annotated[StrictInt, Field(ge=1, le=90)] | None = None
     CAMPANA_MINUTOS: Annotated[StrictInt, Field(ge=5, le=240)] | None = None
     # C7: motor de políticas
+    # autonomo_acotado se retiró en la Fase D1: el servicio responde 422 con el motivo
     MODO_DECISION: Literal["solo_explicar", "recomendar", "autonomo_acotado"] | None = None
-    UMBRAL_CONFIANZA: Annotated[StrictFloat | StrictInt, Field(ge=0.5, le=1.0)] | None = None  # ejecución (9b)
     # C7 (Fase 9a): escalera; además HITL < VLAN (se valida contra los vigentes en el servicio → 422)
     ESCALON_HITL: Annotated[StrictFloat | StrictInt, Field(ge=0.5, le=1.0)] | None = None
     ESCALON_VLAN: Annotated[StrictFloat | StrictInt, Field(ge=0.5, le=1.0)] | None = None
-    MAX_ACCIONES_POR_MIN: Annotated[StrictInt, Field(ge=1, le=20)] | None = None
-    HOSTS_PROTEGIDOS: Annotated[list[IPv4], Field(max_length=100), AfterValidator(_sin_repetidos)] | None = None
     RECOMENDACION_TTL_MIN: Annotated[StrictInt, Field(ge=5, le=1440)] | None = None
+    # retiradas (9b y D1): se aceptan sin efecto por compatibilidad
+    UMBRAL_CONFIANZA: Annotated[StrictFloat | StrictInt, Field(ge=0.5, le=1.0)] | None = None
+    MAX_ACCIONES_POR_MIN: Annotated[StrictInt, Field(ge=1, le=20)] | None = None
+    HOSTS_PROTEGIDOS: Annotated[list[IPv4], Field(max_length=100)] | None = None
 
 
 class RechazoEntrada(BaseModel):

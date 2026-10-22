@@ -18,7 +18,7 @@ from app.api import (
 )
 from app.config import get_settings, origen
 from app.db.database import iniciar_bd
-from app.services import recuperacion
+from app.services import configuracion, recuperacion
 
 
 @asynccontextmanager
@@ -28,6 +28,7 @@ async def ciclo_vida(_app: FastAPI):
     # "uvicorn.error" es el logger que uvicorn muestra en INFO. Solo el nombre del modelo: nunca secretos.
     logging.getLogger("uvicorn.error").info("Modelo LLM efectivo: %s (origen: %s)", ajustes.LLM_MODELO, origen("LLM_MODELO"))
     iniciar_bd(ajustes.DB_URL)
+    configuracion.retirar_modo_autonomo()  # Fase D1: autonomo_acotado guardado o en .env → recomendar
     recuperacion.recuperar_al_arrancar()
     yield
 
