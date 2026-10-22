@@ -1,8 +1,8 @@
-"""Rutas del operador: Ryu (estado, bloqueados, desbloqueo, umbrales), configuración y cupo del LLM."""
+"""Rutas del operador: Ryu (estado, bloqueados, desbloqueo, lectura de umbrales), configuración y cupo del LLM."""
 
-from typing import Annotated, Any
+from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Path, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Path, status
 
 from app.api.routes_alertas import verificar_token_operador
 from app.schemas.alerta import IPv4
@@ -51,16 +51,6 @@ def desbloquear_host(ip: Annotated[IPv4, Path()], entrada: DesbloqueoEntrada, ta
 def obtener_umbrales() -> dict:
     try:
         return operador.obtener_umbrales()
-    except operador.RyuError as error:
-        raise _error_ryu(error) from error
-
-
-@router.put("/ryu/umbrales")
-def actualizar_umbrales(cambios: Annotated[dict[str, Any], Body()]) -> dict:
-    try:
-        return operador.actualizar_umbrales(cambios)
-    except operador.UmbralesInvalidos as error:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(error)) from error
     except operador.RyuError as error:
         raise _error_ryu(error) from error
 

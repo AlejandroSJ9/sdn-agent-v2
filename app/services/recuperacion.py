@@ -1,6 +1,6 @@
 """Recuperación al arrancar: lo que quedó a medias si el agente se detuvo.
 
-- Corridas del laboratorio y ejecuciones de pytest que seguían "en_curso" → "interrumpida".
+- Corridas del laboratorio que seguían "en_curso" → "interrumpida".
 - Recomendaciones pendientes vencidas → "expirada" (Fase 6.8).
 - Incidentes REALES sin explicar (t_explicado nulo) → se reprocesan en segundo plano con el pipeline
   normal, que respeta el cupo y LLM_HABILITADO y envía el correo pendiente. Los de prueba no se
@@ -33,7 +33,6 @@ def recuperar_al_arrancar(programar: Callable[..., Any] = _en_hilo) -> dict[str,
         resultado = {
             "incidentes_reprocesados": repository_operador.incidentes_reales_sin_explicar(),
             "corridas_interrumpidas": repository_laboratorio.interrumpir_corridas_en_curso(),
-            "pytest_interrumpidas": repository_laboratorio.interrumpir_pytest_en_curso(),
             "recomendaciones_expiradas": recomendaciones.expirar(),
         }
         if any(resultado.values()):
@@ -44,5 +43,4 @@ def recuperar_al_arrancar(programar: Callable[..., Any] = _en_hilo) -> dict[str,
         return resultado
     except Exception:
         logger.exception("Falló la recuperación al arrancar")
-        return {"incidentes_reprocesados": [], "corridas_interrumpidas": [], "pytest_interrumpidas": [],
-                "recomendaciones_expiradas": []}
+        return {"incidentes_reprocesados": [], "corridas_interrumpidas": [], "recomendaciones_expiradas": []}

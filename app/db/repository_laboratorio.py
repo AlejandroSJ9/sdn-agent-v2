@@ -1,4 +1,7 @@
-"""Acceso a datos del laboratorio (Fase 6): corridas, resultados por caso y ejecuciones de pytest. Solo SQL."""
+"""Acceso a datos del laboratorio (Fase 6): corridas y resultados por caso. Solo SQL.
+
+Fase D2: la tabla ejecuciones_pytest (EjecucionPytest) queda sin uso; sus filas no se borran.
+"""
 
 from datetime import datetime, timezone
 from typing import Any
@@ -6,7 +9,7 @@ from typing import Any
 from sqlalchemy import select
 
 from app.db.database import SesionLocal
-from app.db.models import Corrida, EjecucionPytest, Incidente, ResultadoCaso
+from app.db.models import Corrida, Incidente, ResultadoCaso
 
 
 def _a_dict(fila) -> dict[str, Any]:
@@ -80,30 +83,6 @@ def opciones_corrida(incidente_id: int) -> dict[str, bool] | None:
     return dict(fila) if fila else None
 
 
-def crear_ejecucion_pytest(carpeta: str) -> int:
-    with SesionLocal.begin() as sesion:
-        ejecucion = EjecucionPytest(carpeta=carpeta, estado="en_curso", t_inicio=datetime.now(timezone.utc), salida="")
-        sesion.add(ejecucion)
-        sesion.flush()
-        return ejecucion.id
-
-
-def terminar_ejecucion_pytest(
-    ejecucion_id: int, estado: str, aprobadas: int | None, fallidas: int | None, duracion_ms: int, salida: str
-) -> None:
-    with SesionLocal.begin() as sesion:
-        ejecucion = sesion.get(EjecucionPytest, ejecucion_id)
-        ejecucion.estado, ejecucion.aprobadas, ejecucion.fallidas = estado, aprobadas, fallidas
-        ejecucion.duracion_ms, ejecucion.salida = duracion_ms, salida
-        ejecucion.t_fin = datetime.now(timezone.utc)
-
-
-def ultima_ejecucion_pytest() -> dict[str, Any] | None:
-    with SesionLocal() as sesion:
-        fila = sesion.scalar(select(EjecucionPytest).order_by(EjecucionPytest.id.desc()).limit(1))
-        return _a_dict(fila) if fila else None
-
-
 def _interrumpir(modelo) -> list[int]:
     """Marca como "interrumpida" lo que siguiera "en_curso" (el agente se detuvo a mitad)."""
     with SesionLocal.begin() as sesion:
@@ -115,7 +94,3 @@ def _interrumpir(modelo) -> list[int]:
 
 def interrumpir_corridas_en_curso() -> list[int]:
     return _interrumpir(Corrida)
-
-
-def interrumpir_pytest_en_curso() -> list[int]:
-    return _interrumpir(EjecucionPytest)

@@ -9,7 +9,7 @@ from conftest import TOKEN_AGENTE, transporte_asgi
 
 from app.integrations import ryu as ryu_modulo
 from app.integrations.ryu import (
-    ApiNoDisponible, ClienteRyu, HostNoBloqueado, RyuError, RyuNoDisponible, UmbralesNoValidos,
+    ApiNoDisponible, ClienteRyu, HostNoBloqueado, RyuError, RyuNoDisponible,
 )
 
 
@@ -35,11 +35,6 @@ def test_desbloquear_y_404_si_ya_no_esta(ryu):
     assert [h["ip"] for h in ryu.bloqueados()] == ["10.0.0.5"]
     with pytest.raises(HostNoBloqueado):
         ryu.desbloquear("10.0.0.3")
-
-
-def test_actualizar_umbrales(ryu):
-    assert ryu.actualizar_umbrales({"M2": 7})["M2"] == 7
-    assert ryu.umbrales()["M2"] == 7
 
 
 def test_el_token_viaja_en_la_cabecera():
@@ -140,12 +135,9 @@ def test_bloqueados_lee_modo_si_viene():
     assert {host["modo"] for host in cliente.bloqueados()} == {"drop_total"}
 
 
-@pytest.mark.parametrize("cambios", [{}, {"CRITICAL_THRESHOLD": 2}, {"M2": 0}, {"M2": 2.5}, {"M2": True}])
-def test_umbrales_invalidos_no_se_envian(cambios):
-    cliente, rutas = _cliente_mock("http://ryu-d.test", cuarentena=False)
-    with pytest.raises(UmbralesNoValidos):
-        cliente.actualizar_umbrales(cambios)
-    assert rutas == []
+def test_el_cliente_ya_no_puede_editar_umbrales():
+    """Fase D2: solo lectura; los umbrales se editan en Ryu."""
+    assert not hasattr(ClienteRyu, "actualizar_umbrales")
 
 
 def test_desbloquear_sin_api_a5_no_es_host_no_bloqueado():

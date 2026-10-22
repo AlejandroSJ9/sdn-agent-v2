@@ -7,9 +7,6 @@ import httpx
 
 from app.integrations._tope import TopeSuperado, ejecutar_con_tope, solicitar_hasta
 
-# Claves de umbral que expone Ryu-IA (C2). Ryu rechaza con 422 cualquier otra o un valor que no sea entero > 0.
-CLAVES_UMBRALES = ("M1", "M2", "M3_DURACION_S", "M3_BYTES", "M4", "M5", "SCORE_SOSPECHOSO", "SCORE_CRITICO")
-
 # Capacidades de la escalera (C2, Fase 9b): A6 cuarentena, A7 limitar_tasa, A8 cuarentena_vlan.
 CAPACIDADES = ("cuarentena", "limitar_tasa", "cuarentena_vlan")
 SIN_CAPACIDADES = dict.fromkeys(CAPACIDADES, False)
@@ -39,10 +36,6 @@ API_NO_DISPONIBLE = "api_no_disponible (falta A5)"
 
 class ApiNoDisponible(RyuError):
     """Ryu responde pero sus rutas /ryu/* dan 404: no tiene la API REST (A5)."""
-
-
-class UmbralesNoValidos(ValueError):
-    """Cambio de umbrales que Ryu rechazaría (clave desconocida o valor que no es entero > 0). No se envía."""
 
 
 class ClienteRyu:
@@ -134,12 +127,5 @@ class ClienteRyu:
         return self._pedir("POST", f"/ryu/hosts/{ip}/cuarentena_vlan")
 
     def umbrales(self) -> dict[str, int]:
+        """Solo lectura (Fase D2: el agente ya no edita los umbrales de Ryu)."""
         return self._pedir("GET", "/ryu/umbrales")
-
-    def actualizar_umbrales(self, cambios: dict[str, int]) -> dict[str, int]:
-        """Valida localmente con las mismas reglas que Ryu antes de enviar."""
-        desconocidas = sorted(set(cambios) - set(CLAVES_UMBRALES))
-        invalidos = sorted(k for k, v in cambios.items() if type(v) is not int or v <= 0)
-        if not cambios or desconocidas or invalidos:
-            raise UmbralesNoValidos(f"claves desconocidas: {desconocidas}; valores inválidos: {invalidos}")
-        return self._pedir("PUT", "/ryu/umbrales", cambios)

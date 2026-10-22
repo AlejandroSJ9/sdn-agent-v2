@@ -115,16 +115,15 @@ tbody tr.clic:hover { background: var(--elevado); }
 .cable { min-width: 0; margin-top: 6px; padding: 10px 4px 0; border-top: 2px solid var(--borde); text-align: center; font-family: var(--mono); font-size: 12px; color: var(--secundario); overflow-wrap: anywhere; }
 @keyframes aparecer { from { opacity: .4; } to { opacity: 1; } }
 
-/* ---- Línea de tiempo en vivo, JSON y consola ---- */
+/* ---- Línea de tiempo en vivo y JSON ---- */
 .lista-eventos { list-style: none; margin: 0; padding: 0; max-height: 60vh; overflow-y: auto; font-size: 12px; }
 .lista-eventos li { display: flex; gap: 8px; padding: 5px 6px; border-bottom: 1px solid var(--borde); cursor: pointer; font-family: var(--mono); }
 .lista-eventos li:hover, .lista-eventos li.elegido { background: var(--elevado); }
 .lista-eventos .tipo { color: var(--texto); }
 .lista-eventos:empty::before { content: "Esperando eventos en vivo…"; display: block; padding: 8px 6px; color: var(--secundario); font-family: var(--fuente); }
 .lista-eventos .datos { color: var(--secundario); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.json, .consola { background: var(--fondo); border: 1px solid var(--borde); border-radius: var(--radio); padding: 10px; overflow: auto; font-family: var(--mono); font-size: 12px; white-space: pre-wrap; }
+.json { background: var(--fondo); border: 1px solid var(--borde); border-radius: var(--radio); padding: 10px; overflow: auto; font-family: var(--mono); font-size: 12px; white-space: pre-wrap; }
 .json { max-height: 260px; margin: 10px 0 0; }
-.consola { min-height: 80px; max-height: 320px; margin: 8px 0 0; color: var(--texto); }
 
 /* ---- Detalle del incidente (página completa) ---- */
 .detalle-grid { display: grid; grid-template-columns: 150px 1fr; gap: 6px 12px; margin: 0; font-size: 13px; }

@@ -1,12 +1,12 @@
-"""Rutas del laboratorio (operador): escenarios, corridas, pytest desde el panel y exportaciones."""
+"""Rutas del laboratorio (operador): escenarios, corridas y exportaciones."""
 
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Response, status
 
 from app.api.routes_alertas import verificar_token_operador
-from app.schemas.laboratorio import CorridaEntrada, PytestEntrada
-from app.services import comparacion, laboratorio, pytest_panel, resultados_lab
+from app.schemas.laboratorio import CorridaEntrada
+from app.services import comparacion, laboratorio, resultados_lab
 
 router = APIRouter(prefix="/api", dependencies=[Depends(verificar_token_operador)])
 
@@ -85,19 +85,6 @@ def exportar_comparacion_csv(ids: Annotated[list[int], Depends(_ids_corridas)]) 
 @router.get("/laboratorio/corridas/{corrida_id}")
 def obtener_corrida(corrida_id: int) -> dict:
     return _corrida_o_404(corrida_id)
-
-
-@router.post("/laboratorio/pytest", status_code=status.HTTP_202_ACCEPTED)
-def ejecutar_pytest(entrada: PytestEntrada, tareas: BackgroundTasks) -> dict:
-    try:
-        return {"ejecucion_id": pytest_panel.lanzar(entrada.carpeta, tareas.add_task)}
-    except pytest_panel.PytestEnCurso as error:
-        raise HTTPException(status.HTTP_409_CONFLICT, str(error)) from error
-
-
-@router.get("/laboratorio/pytest/ultimo")
-def ultimo_pytest() -> dict | None:
-    return pytest_panel.ultimo()
 
 
 @router.get("/export/incidentes.csv")

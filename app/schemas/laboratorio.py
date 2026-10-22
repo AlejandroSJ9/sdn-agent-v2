@@ -32,11 +32,3 @@ class CorridaEntrada(BaseModel):
         if (self.casos is None) == (self.conjunto is None):
             raise ValueError("Indica 'casos' o 'conjunto' (uno de los dos)")
         return self
-
-
-class PytestEntrada(BaseModel):
-    """Solo estas dos carpetas: nunca se arma un comando con texto del usuario."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    carpeta: Literal["unit", "integracion"]

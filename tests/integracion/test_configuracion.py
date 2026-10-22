@@ -107,20 +107,15 @@ def test_config_invalida_422(cliente, cabecera_operador, cuerpo):
     assert cliente.put("/api/config", json=cuerpo, headers=cabecera_operador).status_code == 422
 
 
-@pytest.mark.parametrize("cuerpo", [{"M9": 3}, {"M2": 0}, {"M2": -1}, {"M2": True}, {"M2": 2.5}, {}])
-def test_umbrales_invalidos_422(cliente, cabecera_operador, ryu_mock, cuerpo):
-    assert cliente.put("/api/ryu/umbrales", json=cuerpo, headers=cabecera_operador).status_code == 422
+def test_umbrales_solo_lectura_y_rutas_retiradas(cliente, bd_temporal, cabecera_operador, ryu_mock):
+    """Fase D2: GET de umbrales se conserva; PUT de umbrales y pytest desde el panel ya no existen."""
+    assert cliente.get("/api/ryu/umbrales", headers=cabecera_operador).json() == mock_ryu.UMBRALES_INICIALES
+    assert cliente.put("/api/ryu/umbrales", json={"M2": 7}, headers=cabecera_operador).status_code == 405
     assert ryu_mock.cliente.umbrales()["M2"] == mock_ryu.UMBRALES_INICIALES["M2"]  # Ryu no cambió
-
-
-def test_umbrales_validos_se_aplican_y_auditan(cliente, bd_temporal, cabecera_operador, ryu_mock):
-    respuesta = cliente.put("/api/ryu/umbrales", json={"M2": 7}, headers=cabecera_operador)
-
-    assert respuesta.status_code == 200 and respuesta.json()["M2"] == 7
-    assert cliente.get("/api/ryu/umbrales", headers=cabecera_operador).json()["M2"] == 7
+    assert cliente.post("/api/laboratorio/pytest", json={"carpeta": "unit"}, headers=cabecera_operador).status_code == 404
+    assert cliente.get("/api/laboratorio/pytest/ultimo", headers=cabecera_operador).status_code == 404
     with Session(bd_temporal) as sesion:
-        auditado = sesion.scalars(select(Auditoria).where(Auditoria.evento == "umbrales_cambiados")).one()
-    assert auditado.datos == {"anterior": {"M2": mock_ryu.UMBRALES_INICIALES["M2"]}, "nuevo": {"M2": 7}}
+        assert sesion.scalars(select(Auditoria)).all() == []
 
 
 def test_cupo_del_llm(cliente, cabecera_operador):

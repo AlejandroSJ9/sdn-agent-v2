@@ -162,15 +162,6 @@
           <div id="comparar-resultado" class="tabla-contenedor"></div>
         </div>
         <div class="bloque">
-          <h3>Pruebas automáticas</h3>
-          <div class="fila">
-            <button id="btn-pytest-unit">Ejecutar pruebas unitarias</button>
-            <button id="btn-pytest-integracion">Ejecutar pruebas de integración</button>
-            <span id="pytest-msg" class="mensaje"></span>
-          </div>
-          <pre id="pytest-consola" class="consola" aria-label="Salida de pytest"></pre>
-        </div>
-        <div class="bloque">
           <h3>Exportar</h3>
           <div class="fila">
             <select id="export-origen" aria-label="Origen a exportar"><option value="real">Reales</option><option value="prueba">De prueba</option><option value="todos">Todos</option></select>
@@ -222,9 +213,8 @@
       </section>
       <section id="config-politica" class="panel"></section>
       <section class="panel">
-        <header class="panel-cabecera"><h2>Umbrales de Ryu</h2></header>
-        <form id="form-umbrales" class="umbrales"></form>
-        <p id="msg-umbrales" class="mensaje"></p>
+        <header class="panel-cabecera"><h2>Umbrales de Ryu <small class="secundario">solo lectura · se cambian en Ryu</small></h2></header>
+        <div id="lista-umbrales" class="umbrales"></div>
       </section>
     </section>
   </main>

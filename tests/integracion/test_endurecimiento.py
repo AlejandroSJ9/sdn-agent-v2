@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.db import repository, repository_laboratorio
-from app.db.models import Alerta, Auditoria, Corrida, EjecucionPytest, Incidente
+from app.db.models import Alerta, Auditoria, Corrida, Incidente
 from app.main import app
 from app.schemas.laboratorio import AmbitoPrueba
 from app.services import auditoria, recuperacion
@@ -127,17 +127,15 @@ def test_recuperacion_reprocesa_reales_e_interrumpe_lo_que_seguia_en_curso(bd_te
     })
     corrida = repository_laboratorio.crear_corrida(["AT-01"], None, False, False, 1, 0)
     prueba = repository.crear_incidente("10.0.10.3", None, None, ahora, ahora, {}, ambito=AmbitoPrueba(corrida, "AT-01", 1))
-    pytest_id = repository_laboratorio.crear_ejecucion_pytest("unit")
 
     resultado = recuperacion.recuperar_al_arrancar(programar=lambda funcion, *args: funcion(*args))
 
-    assert resultado == {"incidentes_reprocesados": [real], "corridas_interrumpidas": [corrida], "pytest_interrumpidas": [pytest_id],
-                         "recomendaciones_expiradas": []}  # Fase 6.8
+    assert resultado == {"incidentes_reprocesados": [real], "corridas_interrumpidas": [corrida],
+                         "recomendaciones_expiradas": []}  # Fase 6.8; D2: sin pytest_interrumpidas
     with Session(bd_temporal) as sesion:
         assert sesion.get(Incidente, real).fuente_explicacion == "reglas"
         assert sesion.get(Incidente, prueba).t_explicado is None  # los de prueba no se reprocesan
         assert sesion.get(Corrida, corrida).estado == "interrumpida"
-        assert sesion.get(EjecucionPytest, pytest_id).estado == "interrumpida"
         auditado = sesion.scalars(select(Auditoria).where(Auditoria.evento == "recuperacion_al_arrancar")).one()
     assert auditado.datos == resultado
 

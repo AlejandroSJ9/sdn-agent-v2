@@ -31,3 +31,5 @@ Anotar aquí (una línea) lo que no pide la fase actual.
 - **[F6] Contar peticiones HTTP (no incidentes) por corrida:** la aproximación basta para la evaluación y exigiría una columna nueva.
 - **[D1] Correo cuando aprobar una recomendación termina en accion_estado_desconocido:** hoy solo se avisa en el panel; antes el correo lo cubría la ejecución automática.
 - **[D1] Comentario de `services/explicacion_reglas.py:13`:** todavía nombra UMBRAL_CONFIANZA (retirado); actualizarlo cuando se toque ese archivo.
+- **[D2] Tabla `ejecuciones_pytest` (modelo `EjecucionPytest`) sin uso:** el botón de pytest se retiró; se conservan la tabla y sus filas. Borrarla exigiría una migración.
+- **[D2] Evento `umbrales_cambiados`:** ya no se genera (el agente no edita umbrales); sus filas siguen en la auditoría histórica.

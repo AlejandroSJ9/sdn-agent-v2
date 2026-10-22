@@ -124,7 +124,6 @@ def test_estado_de_ryu_disponible(cliente, cabecera_operador, ryu_mock):
         ("get", "/api/ryu/bloqueados"),
         ("post", "/api/hosts/10.0.0.3/desbloquear"),
         ("get", "/api/ryu/umbrales"),
-        ("put", "/api/ryu/umbrales"),
         ("get", "/api/config"),
         ("put", "/api/config"),
         ("get", "/api/llm/cupo"),

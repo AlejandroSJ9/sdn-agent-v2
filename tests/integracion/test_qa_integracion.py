@@ -80,11 +80,6 @@ def test_umbrales_get_sin_a5_503(cliente, cabecera_operador, ryu_sin_a5):
     assert (respuesta.status_code, respuesta.json()["detail"]) == (503, SIN_A5)
 
 
-def test_umbrales_put_sin_a5_503(cliente, cabecera_operador, ryu_sin_a5):
-    respuesta = cliente.put("/api/ryu/umbrales", json={"M2": 7}, headers=cabecera_operador)
-    assert (respuesta.status_code, respuesta.json()["detail"]) == (503, SIN_A5)
-
-
 # ---- F2: ruta antigua /alert ----
 
 def test_ruta_antigua_alert_404_contada_sin_token_ni_cupo(cliente, bd_temporal, cabecera_operador, payload_c1):

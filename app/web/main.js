@@ -14,7 +14,7 @@ import { refrescarActividad, refrescarResumen } from "./tablero.js";
 import { agregarEvento, incidenteDelFlujo, seguirIncidente } from "./timeline.js";
 import * as laboratorio from "./laboratorio.js";
 import * as pruebas from "./pruebas.js";
-import { iniciarUmbrales, refrescarUmbrales } from "./umbrales.js";
+import { refrescarUmbrales } from "./umbrales.js";
 import { conectarEventos } from "./ws.js";
 
 let conexion = null;
@@ -67,23 +67,18 @@ function enrutar(evento) {
 
 function alEventoDePrueba(evento) {
   const datos = evento.datos || {};
-  const esPytest = datos.tipo === "pytest";
   if (evento.tipo === "prueba_progreso") {
-    if (esPytest) pruebas.alLinea(datos); // cada línea de pytest va a su consola, no a la línea de tiempo
-    else laboratorio.alProgreso(datos);
-    return !esPytest;
+    laboratorio.alProgreso(datos);
+    return;
   }
-  if (esPytest) pruebas.alTerminar(datos);
-  else {
-    laboratorio.alTerminar(datos);
-    refrescarCorridasComparables();
-  }
-  return true;
+  laboratorio.alTerminar(datos);
+  refrescarCorridasComparables();
 }
 
 function alEvento(evento) {
   if (evento.tipo.startsWith("prueba_")) {
-    if (alEventoDePrueba(evento)) agregarEvento(evento);
+    alEventoDePrueba(evento);
+    agregarEvento(evento);
     return;
   }
   agregarEvento(evento);
@@ -140,7 +135,6 @@ async function arrancarPanel() {
     iniciarEstado();
     iniciarBloqueados();
     iniciarIncidentes();
-    iniciarUmbrales();
     iniciarAuditoria();
     laboratorio.iniciarLaboratorio();
     pruebas.iniciarPruebas();
