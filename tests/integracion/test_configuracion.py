@@ -51,6 +51,7 @@ def test_apagar_el_llm_por_api_aplica_sin_reiniciar(
     respuesta = cliente.put("/api/config", json={"LLM_HABILITADO": False}, headers=cabecera_operador)
     assert respuesta.json() == {"LLM_HABILITADO": False, "DEDUP_SEGUNDOS": 60, "CONTEXTO_HABILITADO": False,
                                 "HISTORIAL_DIAS": 30, "CAMPANA_MINUTOS": 30,  # Fase 6.7: + contexto dinámico
+                                "PROMPT_V4": False,  # Fase D3 (temporal): prompt v4
                                 "MODO_DECISION": "recomendar", "RECOMENDACION_TTL_MIN": 60,  # Fase 6.8: + motor de políticas
                                 # Fase D1: sin UMBRAL_CONFIANZA, MAX_ACCIONES_POR_MIN ni HOSTS_PROTEGIDOS (retiradas)
                                 "ESCALON_HITL": 0.7, "ESCALON_VLAN": 0.95}  # Fase 9a: + escalera

@@ -18,7 +18,7 @@ from app.db import repository, repository_laboratorio
 from app.schemas.alerta import AlertaEntrada
 from app.schemas.laboratorio import AmbitoPrueba
 from app.services import alertas, configuracion, eventos, presupuesto, resultados_lab, siembra
-from app.services.prompt import VERSIONES
+from app.services.prompt import version
 
 logger = logging.getLogger(__name__)
 
@@ -93,7 +93,8 @@ def iniciar_corrida(
         raise CorridaEnCurso("Ya hay una corrida del laboratorio en curso.")
     try:
         corrida_id = repository_laboratorio.crear_corrida(
-            seleccion, conjunto, usar_llm, enviar_correos, repeticiones, costo, variante, VERSIONES[variante],
+            seleccion, conjunto, usar_llm, enviar_correos, repeticiones, costo, variante,
+            version(variante, configuracion.prompt_v4()),  # Fase D3: la corrida fija su versión al crearse
             modo_decision, float(umbral_confianza),
         )
         programar(ejecutar_corrida, corrida_id)

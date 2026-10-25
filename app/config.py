@@ -51,6 +51,7 @@ class Settings(BaseSettings):
     PANEL_URL: str = "http://localhost:8081"
     DEDUP_SEGUNDOS: int = 60
     CONTEXTO_HABILITADO: bool = False  # C6: historial del host en el prompt (editable en caliente)
+    PROMPT_V4: bool = False  # Fase D3 (temporal, medición): prompt v4.0 / v4.1 con explicación simple
     HISTORIAL_DIAS: int = 30
     CAMPANA_MINUTOS: int = 30
     # C7: motor de políticas (editables en caliente)

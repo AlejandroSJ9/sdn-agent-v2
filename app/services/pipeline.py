@@ -1,7 +1,9 @@
 """Pipeline de un incidente nuevo. Corre en segundo plano (BackgroundTasks).
 
-Orden estricto (Fase 6.8a+b, 9a): alerta → contexto → dictamen determinista → LLM v3 (recibe el dictamen como
-dato) → veredicto final → verificador → confianza calculada y escalera (C7) → política → informe → notificación.
+Orden estricto (Fase 6.8a+b, 9a, D3): alerta → contexto → dictamen determinista → LLM v3/v4 (recibe el dictamen
+como dato) → veredicto final → revisión de la explicación simple → verificador → confianza calculada y escalera (C7)
+→ explicación simple (bloque 3 por código) → política → informe → notificación. v4 se elige con PROMPT_V4 (real) o
+con la versión guardada en la corrida (laboratorio).
 El CÓDIGO decide lo concluyente (dictamen) y aporta los hechos; el LLM solo interpreta. Solo
 services/acciones.py puede actuar sobre Ryu, y nunca para desbloquear.
 """
@@ -16,14 +18,14 @@ from app.config import get_settings
 from app.db import repository, repository_acciones, repository_laboratorio
 from app.integrations.llm import ClienteLLM, ClienteOpenRouter, LLMError, RespuestaLLM
 from app.schemas.alerta import AlertaEntrada
-from app.schemas.explicacion import SalidaLLMv3
+from app.schemas.explicacion import SalidaLLMv3, SalidaLLMv4
 from app.services import (
-    acciones, auditoria, configuracion, contexto, decision, escalera, evidencia, eventos, informe, notificacion,
-    presupuesto, verificador,
+    acciones, auditoria, configuracion, contexto, decision, escalera, evidencia, eventos, explicacion_simple, informe,
+    notificacion, presupuesto, verificador,
 )
 from app.services.dictamen_historial import dictaminar
 from app.services.explicacion_reglas import explicar_por_reglas
-from app.services.prompt import VERSIONES, construir_mensaje_usuario, system_prompt
+from app.services.prompt import construir_mensaje_usuario, es_v4, system_prompt, version
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +39,7 @@ def obtener_cliente_llm() -> ClienteLLM:
 
 
 def _intentar_llm(alerta: AlertaEntrada, mensaje: str, con_contexto: bool, cliente: ClienteLLM | None,
-                  laboratorio: dict | None) -> Intento:
+                  laboratorio: dict | None, v4: bool = False) -> Intento:
     ajustes = get_settings()
     if laboratorio is not None and not laboratorio["usar_llm"]:
         return None, "laboratorio_sin_llm", None  # corrida sin LLM: no toca el cupo ni el interruptor global
@@ -50,13 +52,13 @@ def _intentar_llm(alerta: AlertaEntrada, mensaje: str, con_contexto: bool, clien
 
     cliente = cliente or obtener_cliente_llm()
     try:
-        respuesta = cliente.completar(system_prompt(con_contexto), mensaje)
+        respuesta = cliente.completar(system_prompt(con_contexto, v4), mensaje)
     except LLMError as error:
         presupuesto.registrar_uso(0, 0, 0, exito=False, peticiones=max(error.peticiones, 1))
         return None, error.motivo, None
 
     try:
-        salida = SalidaLLMv3.model_validate_json(respuesta.texto)
+        salida = SalidaLLMv4.model_validate_json(respuesta.texto)  # los bloques simples son opcionales
         motivo = None
     except ValidationError as error:
         salida = None
@@ -106,6 +108,8 @@ def procesar(incidente_id: int, cliente: ClienteLLM | None = None) -> None:
         alerta = AlertaEntrada.model_validate(payload)  # al prompt solo llegan campos validados
         laboratorio = repository_laboratorio.opciones_corrida(incidente_id)  # None si es un incidente real
         variante = _variante(laboratorio)
+        v4 = es_v4(laboratorio["version_prompt"]) if laboratorio is not None else configuracion.prompt_v4()
+        version_prompt = version(variante, v4)
         superados = informe.umbrales_superados(alerta)
 
         # contexto → dictamen determinista (va al LLM dentro de <contexto_host>)
@@ -121,7 +125,7 @@ def procesar(incidente_id: int, cliente: ClienteLLM | None = None) -> None:
                                             evidencia.para_prompt(evaluadas))
 
         try:
-            salida, motivo, respuesta = _intentar_llm(alerta, mensaje, contexto_host is not None, cliente, laboratorio)
+            salida, motivo, respuesta = _intentar_llm(alerta, mensaje, contexto_host is not None, cliente, laboratorio, v4)
         except Exception:
             logger.exception("Error inesperado al usar el LLM en el incidente %s", incidente_id)
             salida, motivo, respuesta = None, "error_interno", None
@@ -140,11 +144,16 @@ def procesar(incidente_id: int, cliente: ClienteLLM | None = None) -> None:
             auditoria.registrar("tecnica_corregida", {"incidente_id": incidente_id, "propuesta": salida.tecnica_id,
                                                       "corregida_a": tecnica[0]})
 
-        # verificador anti-alucinación (no bloquea nada; penaliza la confianza calculada)
+        # verificador anti-alucinación (no bloquea nada; penaliza la confianza calculada). Fase D3: una cifra
+        # inventada en la explicación simple penaliza igual; la jerga solo hace que el bloque salga de la plantilla.
+        revision = explicacion_simple.revisar(salida, fuente, veredicto_final,
+                                              *explicacion_simple.respaldados(alerta, evaluadas, alertas_agrupadas))
         numeros, ips = informe.respaldados(alerta, evaluadas, alertas_agrupadas, contexto_host)
-        verificacion = verificador.verificar(informe.textos_llm(salida), numeros, ips)
+        verificacion = explicacion_simple.penalizar(verificador.verificar(informe.textos_llm(salida), numeros, ips), revision)
         auditoria.registrar("verificacion_informe", {"incidente_id": incidente_id, **verificacion})
         accion, confianza, resultado_escalera = _accion_escalera(incidente_id, alerta, salida, dictamen, verificacion)
+        simple = explicacion_simple.armar(revision, alerta, evaluadas, dictamen, veredicto_final, confianza,
+                                          resultado_escalera)
 
         t_explicado = datetime.now(timezone.utc)
         repository.guardar_explicacion(
@@ -156,12 +165,12 @@ def procesar(incidente_id: int, cliente: ClienteLLM | None = None) -> None:
             respuesta.tokens_entrada if respuesta else None,
             respuesta.tokens_salida if respuesta else None,
             respuesta.latencia_ms if respuesta else None,
-            variante, VERSIONES[variante], contexto_host, veredicto_llm, dictamen["tipo"],
+            variante, version_prompt, contexto_host, veredicto_llm, dictamen["tipo"],
         )
         hash_explicacion = auditoria.registrar(
             "explicacion_generada",
             {"incidente_id": incidente_id, "fuente": fuente, "motivo_respaldo": motivo, "variante": variante,
-             "version_prompt": VERSIONES[variante], "contexto_usado": contexto_host, "veredicto_llm": veredicto_llm,
+             "version_prompt": version_prompt, "contexto_usado": contexto_host, "veredicto_llm": veredicto_llm,
              "veredicto_final": veredicto_final},
         )
         eventos.emitir("explicacion_lista", {"incidente_id": incidente_id, "fuente": fuente, "motivo_respaldo": motivo,
@@ -184,7 +193,7 @@ def procesar(incidente_id: int, cliente: ClienteLLM | None = None) -> None:
             "modelo": ((respuesta.modelo if respuesta and respuesta.modelo else None) or get_settings().LLM_MODELO)
             if fuente == "llm" else None,
             "modelo_configurado": get_settings().LLM_MODELO if fuente == "reglas" else None,
-            "fuente_explicacion": fuente, "version_prompt": VERSIONES[variante], "variante": variante,
+            "fuente_explicacion": fuente, "version_prompt": version_prompt, "variante": variante,
             "veredicto_llm": veredicto_llm, "veredicto_final": veredicto_final, "accion_propuesta": accion["accion"],
             "origen_accion": accion["origen"], "confianza_accion": accion["confianza"],
             "justificacion_accion": accion["justificacion"],
@@ -192,7 +201,8 @@ def procesar(incidente_id: int, cliente: ClienteLLM | None = None) -> None:
             "accion_final": decidido["accion_final"],
             "confianza_calculada": confianza, "escalera": resultado_escalera, "accion_sugerida_llm": salida.accion_propuesta,
         }
-        armado = informe.ensamblar(alerta, evaluadas, fuente_umbrales, salida, tecnica, dictamen, verificacion, traza)
+        armado = informe.ensamblar(alerta, evaluadas, fuente_umbrales, salida, tecnica, dictamen, verificacion, traza,
+                                   simple)
         repository_acciones.guardar_informe(incidente_id, armado, informe.resumen(armado, salida.severidad))
 
         omitir = "laboratorio" if laboratorio is not None and not laboratorio["enviar_correos"] else None

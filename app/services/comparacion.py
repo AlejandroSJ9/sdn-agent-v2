@@ -10,8 +10,8 @@ from app.db import repository_laboratorio
 from app.services.resultados_lab import _a_csv, _escenarios, _exactitud, metricas_xai
 
 MIN_CORRIDAS, MAX_CORRIDAS = 2, 4
-COLUMNAS_CSV = ["caso_id", "clase", "conjunto", "veredicto_esperado", "aceptables", "corrida_id", "variante",
-                "usar_llm", "veredictos", "aciertos", "de", "veredictos_llm", "dictamenes", "verificaciones"]
+COLUMNAS_CSV = ["caso_id", "clase", "conjunto", "veredicto_esperado", "aceptables", "corrida_id", "etiqueta", "variante",
+                "version_prompt", "usar_llm", "veredictos", "aciertos", "de", "veredictos_llm", "dictamenes", "verificaciones"]
 
 # Registradas ANTES de correr las variantes; viajan junto a los resultados en la exportación JSON.
 HIPOTESIS = {
@@ -31,8 +31,10 @@ class ComparacionInvalida(ValueError):
 
 
 def _etiqueta(corrida: dict) -> str:
+    """Fase D3: incluye la versión exacta del prompt (v3.0, v3.1, v4.0 o v4.1) para medir v3 contra v4."""
     fuente = "LLM" if corrida["usar_llm"] else "reglas"
-    return f"#{corrida['id']} · {fuente} · {corrida['variante'].replace('_', ' ')}"
+    version = (corrida.get("version_prompt") or "—").split("-")[0]
+    return f"#{corrida['id']} · {fuente} · {corrida['variante'].replace('_', ' ')} · {version}"
 
 
 def _acierta(celda: dict) -> bool:
@@ -115,7 +117,8 @@ def exportar_csv(corrida_ids: list[int]) -> str:
     corridas = {str(c["id"]): c for c in datos["corridas"]}
     filas = [
         {**{k: fila[k] for k in ("caso_id", "clase", "conjunto", "veredicto_esperado")},
-         "aceptables": "|".join(fila["aceptables"]), "corrida_id": cid, "variante": corridas[cid]["variante"],
+         "aceptables": "|".join(fila["aceptables"]), "corrida_id": cid, "etiqueta": corridas[cid]["etiqueta"],
+         "variante": corridas[cid]["variante"], "version_prompt": corridas[cid]["version_prompt"],
          "usar_llm": corridas[cid]["usar_llm"], "veredictos": "|".join(v or "—" for v in celda["veredictos"]),
          "aciertos": celda["aciertos"], "de": celda["de"],
          "veredictos_llm": "|".join(v or "—" for v in celda["veredictos_llm"]),

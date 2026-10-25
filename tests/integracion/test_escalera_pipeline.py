@@ -63,7 +63,7 @@ def test_una_alerta_por_escalon_con_desglose_recalculable(
     t = i.informe["trazabilidad_y_accion"]
     c = t["confianza_calculada"]
     assert (i.accion_propuesta, t["escalera"]["accion_recomendada"], c["total"], t["confianza_accion"]) == (accion, accion, total, total)
-    assert c["fuente_ryu"] == ("puntaje_ryu" if puntaje else "pesos_c1") and i.informe["version_informe"] == "1.1"
+    assert c["fuente_ryu"] == ("puntaje_ryu" if puntaje else "pesos_c1") and i.informe["version_informe"] == "1.2"  # Fase D3: + explicacion_simple
     if total is not None:
         assert _recalcular(c) == total
     with Session(bd_temporal) as sesion:

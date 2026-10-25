@@ -2,6 +2,8 @@
 """
 Verificación end-to-end de la Fase 6.8a+b (dictamen determinista + informe XAI) y de la 9a (confianza
 calculada y escalera de respuesta). Corre en modo recomendar: nada se ejecuta sin el operador (Fase 9b).
+Fase D3: espera el prompt v3.x o v4.x según PROMPT_V4 (la configuración vigente al empezar) y el informe 1.2 con
+la explicación simple en 4 bloques, sin jerga.
 
 Prueba el sistema DESDE AFUERA, como lo usaría Ryu y el operador: envía alertas
 reales al agente, desbloquea por la API y revisa el informe guardado. No importa
@@ -141,6 +143,35 @@ def esperar_dedup(segundos):
     time.sleep(segundos)
 
 
+# Fase D3: misma lista que app/services/verificador.py (el script no importa app/).
+JERGA = re.compile(
+    r"\bM[1-5](?:_count)?\b|\bT1\d{3}(?:\.\d{3})?\b|\bMITRE\b|ATT&CK|east[- ]west|packet[- ]in|\bSMB\b|\bflujos?\b"
+    r"|\bumbral(?:es)?\b|\bdesviaci[oó]n(?:es)?\b|\bDROP\b|\bSDN\b|\bRyu\b|\bhosts?\b",
+    re.IGNORECASE,
+)
+V4 = False  # PROMPT_V4 vigente al empezar (se lee en main)
+
+
+def version_esperada(variante):
+    return f"v{4 if V4 else 3}.{1 if variante == 'con_contexto' else 0}"
+
+
+def verificar_simple(G, inf, con_llm):
+    s = inf.get("explicacion_simple") or {}
+    bloques = ("que_paso", "por_que", "que_recomendamos", "podria_equivocarnos")
+    check(G, "explicación simple: 4 bloques", all(s.get(b) for b in bloques), f"claves: {list(s)}")
+    check(G, "explicación simple: 2 o 3 señales", 2 <= len(s.get("por_que") or []) <= 3, str(s.get("por_que")))
+    textos = [s.get("que_paso") or "", *(s.get("por_que") or []), s.get("que_recomendamos") or "", s.get("podria_equivocarnos") or ""]
+    jerga = sorted({m.group() for t in textos for m in JERGA.finditer(t)})
+    check(G, "explicación simple sin jerga", not jerga, str(jerga))
+    check(G, "explicación simple: nunca 'lo normal'", not any("lo normal" in t.lower() for t in textos), "")
+    fuentes = s.get("fuentes") or {}
+    if not con_llm:
+        check(G, "sin LLM: los 3 bloques salen de plantillas", set(fuentes.values()) == {"reglas"}, str(fuentes))
+    else:
+        check(G, "fuentes de los bloques válidas", set(fuentes.values()) <= {"llm", "reglas"} and len(fuentes) == 3, str(fuentes))
+
+
 # ------------------------------------------------- verificaciones del informe
 def verificar_informe(caso, inc, payload, con_llm):
     inf = inc.get("informe") or {}
@@ -227,7 +258,9 @@ def verificar_informe(caso, inc, payload, con_llm):
     check(G, "nunca se propone desbloquear", "desbloque" not in json.dumps(tr).lower() or tr.get("accion_propuesta") != "desbloquear", "")
     # Fase 9a: confianza calculada (recalculada aquí a mano) y escalera
     cc, esc = tr.get("confianza_calculada") or {}, tr.get("escalera") or {}
-    check(G, "informe 1.1 con confianza calculada y escalera", inf.get("version_informe") == "1.1" and bool(cc) and bool(esc), "")
+    check(G, "informe 1.2 con confianza calculada y escalera", inf.get("version_informe") == "1.2" and bool(cc) and bool(esc),
+          str(inf.get("version_informe")))
+    verificar_simple(G, inf, con_llm)
     if cc.get("total") is not None:
         termino = 0.5 * cc["s"] if cc["veredicto_usado"] == "confirmado" else 0.5 * (1 - cc["s"])
         a_mano = round(min(max(termino + 0.5 - cc["penalizacion"], 0), 1) + 1e-9, 2)
@@ -260,10 +293,13 @@ def main():
         sys.exit(f"Agente o mock de Ryu no disponibles: {e}")
 
     original = leer_config()
+    global V4
+    V4 = bool(original.get("PROMPT_V4"))
     base = random.randint(100, 240)  # subred aleatoria: evita historial de corridas previas
     ip = lambda n: f"10.0.{base}.{n}"
     DEDUP = 10
-    print(f"\nVerificación Fase 6.8a+b · {'CON LLM (' + MODELO + ')' if con_llm else 'SIN LLM (reglas)'} · subred 10.0.{base}.0/24\n")
+    print(f"\nVerificación Fase 6.8a+b · {'CON LLM (' + MODELO + ')' if con_llm else 'SIN LLM (reglas)'} · "
+          f"PROMPT_V4={'true' if V4 else 'false'} · subred 10.0.{base}.0/24\n")
 
     try:
         config({"CONTEXTO_HABILITADO": True, "LLM_HABILITADO": con_llm, "DEDUP_SEGUNDOS": DEDUP,
@@ -274,7 +310,8 @@ def main():
         i, p = alerta(ip(1), 30, 12, True, 80, True, 9, ["M1", "M2", "M3", "M5"])
         inc = esperar(i)
         check("A", "variante con_contexto", inc.get("variante") == "con_contexto", inc.get("variante"))
-        check("A", "versión de prompt v3.1", str(inc.get("version_prompt", "")).startswith("v3.1"), inc.get("version_prompt"))
+        check("A", f"versión de prompt {version_esperada('con_contexto')}",
+              str(inc.get("version_prompt", "")).startswith(version_esperada("con_contexto")), inc.get("version_prompt"))
         check("A", "sin dictamen", not inc.get("dictamen_historial"), inc.get("dictamen_historial"))
         if inc.get("fuente_explicacion") == "llm":
             check("A", "veredicto final = veredicto LLM", inc.get("veredicto") == inc.get("veredicto_llm"),
@@ -360,8 +397,8 @@ def main():
         esperar_dedup(DEDUP + 2)
         i, p = alerta(ip(2), 22, 17, False, 212, False, 2, ["M1", "M2", "M4"])
         inc = esperar(i)
-        check("G", "variante sin_contexto y prompt v3.0",
-              inc.get("variante") == "sin_contexto" and str(inc.get("version_prompt", "")).startswith("v3.0"),
+        check("G", f"variante sin_contexto y prompt {version_esperada('sin_contexto')}",
+              inc.get("variante") == "sin_contexto" and str(inc.get("version_prompt", "")).startswith(version_esperada("sin_contexto")),
               f"{inc.get('variante')} / {inc.get('version_prompt')}")
         check("G", "sin dictamen", not inc.get("dictamen_historial"), inc.get("dictamen_historial"))
         verificar_informe("G", inc, p, con_llm)

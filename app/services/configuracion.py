@@ -18,11 +18,11 @@ from app.services import auditoria, eventos
 logger = logging.getLogger(__name__)
 
 CLAVES = (
-    "LLM_HABILITADO", "DEDUP_SEGUNDOS", "CONTEXTO_HABILITADO", "HISTORIAL_DIAS", "CAMPANA_MINUTOS",
+    "LLM_HABILITADO", "DEDUP_SEGUNDOS", "CONTEXTO_HABILITADO", "HISTORIAL_DIAS", "CAMPANA_MINUTOS", "PROMPT_V4",
     "MODO_DECISION", "RECOMENDACION_TTL_MIN", "ESCALON_HITL", "ESCALON_VLAN",
 )
 RETIRADAS = ("UMBRAL_CONFIANZA", "MAX_ACCIONES_POR_MIN", "HOSTS_PROTEGIDOS")  # se aceptan sin efecto
-_BOOLEANAS = ("LLM_HABILITADO", "CONTEXTO_HABILITADO")
+_BOOLEANAS = ("LLM_HABILITADO", "CONTEXTO_HABILITADO", "PROMPT_V4")
 MODOS_DECISION = ("solo_explicar", "recomendar")
 MODO_RETIRADO = "autonomo_acotado"
 MENSAJE_MODO_RETIRADO = "El modo autonomo_acotado fue retirado en la Fase D1: el agente solo recomienda; el operador aprueba."
@@ -73,6 +73,11 @@ def llm_habilitado() -> bool:
 
 def dedup_segundos() -> int:
     return obtener()["DEDUP_SEGUNDOS"]
+
+
+def prompt_v4() -> bool:
+    """Fase D3 (temporal): True → prompts v4.0 / v4.1 (explicación simple)."""
+    return obtener()["PROMPT_V4"]
 
 
 def politica() -> dict[str, Any]:

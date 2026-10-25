@@ -25,3 +25,27 @@ def test_detecta_un_numero_inventado_y_una_ip_inventada():
 def test_detecta_decimales_y_porcentajes_inventados():
     resultado = verificar(["desviación 2.75", "el 340 % del umbral"], PERMITIDOS, IPS)
     assert resultado["numeros_no_respaldados"] == ["2.75", "340%"]
+
+
+# ---- Fase D3: bloques de la explicación simple ----
+
+from app.services.verificador import verificar_bloques  # noqa: E402
+
+
+def test_bloques_limpios_no_tienen_problemas():
+    bloques = {"por_que": ["Intentó conectarse a 17 equipos distintos en 30 segundos; lo esperado es 15 o menos."],
+               "que_paso": ["Este equipo (10.0.10.1) intentó saltar a otros equipos."]}
+    assert verificar_bloques(bloques, PERMITIDOS, IPS) == {}
+
+
+def test_bloques_con_cifra_inventada_o_jerga_se_informan_por_separado():
+    bloques = {"a": ["Hizo 99 conexiones."], "b": ["Superó el umbral de M5_count con tráfico SMB y packet-in."],
+               "c": ["Todo bien."]}
+    assert verificar_bloques(bloques, PERMITIDOS, IPS) == {
+        "a": {"cifras": ["99"], "jerga": []},
+        "b": {"cifras": [], "jerga": ["umbral", "M5_count", "SMB", "packet-in"]}}
+
+
+def test_jerga_sin_distinguir_mayusculas_y_tecnicas_mitre():
+    problemas = verificar_bloques({"x": ["Según MITRE es T1021.002 sobre el HOST, con flujo East-West y DROP."]}, [], [])
+    assert problemas["x"]["jerga"] == ["MITRE", "T1021.002", "HOST", "flujo", "East-West", "DROP"]

@@ -1,5 +1,7 @@
 // Detalle del incidente a página completa (#/incidentes/<id>): cabecera fija con veredicto, dictamen, acción y
 // desbloqueo; resumen; las 4 dimensiones XAI en grilla; contexto y JSON crudo colapsados. Todo entra como texto.
+// Fase D3 (informe 1.2): primero la explicación simple en 4 bloques y, plegado en "Detalle técnico", el resumen y la
+// grilla XAI sin cambios. Un incidente sin explicación simple se muestra como antes.
 
 import { api } from "./api.js";
 import { abrirModal } from "./bloqueados.js";
@@ -75,6 +77,24 @@ function resumen(i) {
     el("p", { class: "texto-largo" }, i.recomendacion_operador ?? "—"));
 }
 
+const BLOQUES_SIMPLES = [["que_paso", "Qué pasó"], ["por_que", "Por qué creemos que es esto"],
+  ["que_recomendamos", "Qué recomendamos y por qué"], ["podria_equivocarnos", "Qué podría hacer que estemos equivocados"]];
+
+function notaFuentes(fuentes) {
+  const valores = Object.values(fuentes ?? {});
+  if (valores.length && valores.every((f) => f === "llm")) return "redactado por el modelo de lenguaje";
+  if (valores.every((f) => f === "reglas")) return "redactado por reglas automáticas";
+  return "redactado en parte por el modelo de lenguaje y en parte por reglas automáticas";
+}
+
+function explicacionSimple(s) {
+  return el("section", { class: "panel tarjeta destacada" },
+    el("h2", {}, "Explicación ", el("small", {}, `· ${notaFuentes(s.fuentes)}`)),
+    BLOQUES_SIMPLES.map(([clave, titulo]) => [el("h3", {}, titulo), Array.isArray(s[clave])
+      ? el("ul", {}, s[clave].map((frase) => el("li", {}, frase)))
+      : el("p", { class: "texto-largo" }, s[clave])]));
+}
+
 async function reenviar(boton, salida) {
   boton.disabled = true;
   mensaje(salida, "Enviando correo… (puede tardar si Apps Script reintenta)");
@@ -135,10 +155,11 @@ export async function mostrarDetalle(id, desde = null) {
     if (idEnDetalle !== id) return;
     // Un refresco en vivo no debe cerrar lo que el operador desplegó.
     const abiertos = new Set([...pagina.querySelectorAll("details[open]")].map((d) => d.dataset.clave));
+    const grilla = el("div", { class: "grilla-xai" }, i.informe ? tarjetasInforme(i, extrasTrazabilidad(i)) : tarjetasPrevias(i));
+    const simple = i.informe?.explicacion_simple;
     vaciar(pagina,
       cabecera(i, bloqueados, abiertos),
-      resumen(i),
-      el("div", { class: "grilla-xai" }, i.informe ? tarjetasInforme(i, extrasTrazabilidad(i)) : tarjetasPrevias(i)),
+      simple ? [explicacionSimple(simple), plegable("tecnico", "Detalle técnico", abiertos, resumen(i), grilla)] : [resumen(i), grilla],
       plegable("contexto", "Contexto usado (historial del host y actividad de la red)", abiertos, ...contenidoContexto(i)),
       plegable("json", "JSON crudo del informe", abiertos,
         el("pre", { class: "json crudo" }, i.informe ? JSON.stringify(i.informe, null, 2) : "Sin informe auditable.")));

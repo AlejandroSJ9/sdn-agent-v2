@@ -74,7 +74,8 @@ def resultados_de(corrida_id: int) -> list[dict[str, Any]]:
 def opciones_corrida(incidente_id: int) -> dict[str, bool] | None:
     """Opciones de la corrida de un incidente de prueba; None si el incidente es real."""
     consulta = (
-        select(Corrida.usar_llm, Corrida.enviar_correos, Corrida.variante, Corrida.modo_decision, Corrida.umbral_confianza)
+        select(Corrida.usar_llm, Corrida.enviar_correos, Corrida.variante, Corrida.modo_decision, Corrida.umbral_confianza,
+               Corrida.version_prompt)
         .join(Incidente, Incidente.corrida_id == Corrida.id)
         .where(Incidente.id == incidente_id, Incidente.origen == "prueba")
     )

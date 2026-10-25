@@ -7,6 +7,8 @@ experimento de la Fase 6.7 y poder reproducirlo.
 Fase 6.8a+b: ACTIVOS v3.0 (sin contexto) y v3.1 (con contexto). El LLM ya no redacta explicación ni
 evidencias libres: solo interpreta (campos de SalidaLLMv3). <datos_red> trae umbrales y desviaciones
 calculados por código y <contexto_host> el dictamen determinista. v2.2, v2.3 y v2.4 se conservan SIN USO.
+Fase D3: v4.0 / v4.1 (services/prompt_v4.py) = v3.0 / v3.1 + explicación simple; se eligen con PROMPT_V4 (temporal,
+para medir). Con PROMPT_V4=false siguen activos v3.0 / v3.1.
 """
 
 import json
@@ -169,6 +171,7 @@ SYSTEM_PROMPT_CONTEXTO = SYSTEM_PROMPT_V31  # activo con contexto
 VERSION_SIN_CONTEXTO = "v3.0-sin-contexto"
 VERSION_CON_CONTEXTO = "v3.1-contexto-historial"
 VERSIONES = {"sin_contexto": VERSION_SIN_CONTEXTO, "con_contexto": VERSION_CON_CONTEXTO}
+VERSIONES_V4 = {"sin_contexto": "v4.0-sin-contexto", "con_contexto": "v4.1-contexto-historial"}  # Fase D3
 VERSIONES_ANTERIORES = {  # sin uso; solo reproducibilidad
     "v2.0-sin-contexto": SYSTEM_PROMPT_V20, "v2.1-contexto-historial": SYSTEM_PROMPT_CONTEXTO_V21,
     "v2.2-sin-contexto": SYSTEM_PROMPT_V22, "v2.3-contexto-historial": SYSTEM_PROMPT_CONTEXTO_V23,
@@ -186,8 +189,21 @@ def _json_escapado(datos: dict) -> str:
     return texto.replace("<", "\\u003c").replace(">", "\\u003e")
 
 
-def system_prompt(con_contexto: bool) -> str:
+def system_prompt(con_contexto: bool, v4: bool = False) -> str:
+    if v4:
+        from app.services import prompt_v4  # v4 se construye desde v3: importarlo arriba sería circular
+
+        return prompt_v4.SYSTEM_PROMPT_V41 if con_contexto else prompt_v4.SYSTEM_PROMPT_V40
     return SYSTEM_PROMPT_CONTEXTO if con_contexto else SYSTEM_PROMPT
+
+
+def version(variante: str, v4: bool = False) -> str:
+    """Versión exacta que se guarda en el incidente y en la corrida."""
+    return (VERSIONES_V4 if v4 else VERSIONES)[variante]
+
+
+def es_v4(version_prompt: str | None) -> bool:
+    return bool(version_prompt) and version_prompt.startswith("v4.")
 
 
 def construir_mensaje_usuario(

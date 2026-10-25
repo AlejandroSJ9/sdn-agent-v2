@@ -1,5 +1,6 @@
 """Informe auditable del incidente (Fase 6.8a+b), en 4 dimensiones (NIST SP 800-207, ISO/IEC 27001:2022
 A.8.16, XAI). Lo ensambla el CÓDIGO (services/informe.py): el LLM solo aporta textos de interpretación.
+Fase D3 (informe 1.2): + explicacion_simple, los 4 bloques en lenguaje simple (services/explicacion_simple.py).
 """
 
 from typing import Literal
@@ -130,9 +131,26 @@ class Trazabilidad(BaseModel):
     accion_sugerida_llm: str | None = None  # la que propuso el LLM o las reglas: informativa, no decide
 
 
+class ReemplazoSimple(BaseModel):
+    bloque: Literal["que_paso", "por_que", "podria_equivocarnos"]
+    motivo: str
+
+
+class ExplicacionSimple(BaseModel):
+    """Fase D3: bloques 1, 2 y 4 del LLM o de plantillas (fuentes); el 3 lo arma siempre el código."""
+
+    que_paso: str
+    por_que: list[str]
+    que_recomendamos: str
+    podria_equivocarnos: str
+    fuentes: dict[Literal["que_paso", "por_que", "podria_equivocarnos"], Literal["llm", "reglas"]]
+    reemplazos: list[ReemplazoSimple] = []
+
+
 class Informe(BaseModel):
-    version_informe: str = "1.1"
+    version_informe: str = "1.1"  # "1.2" cuando trae explicacion_simple (Fase D3)
     evidencia_objetiva: EvidenciaObjetiva
     mitre: Mitre
     razonamiento: Razonamiento
     trazabilidad_y_accion: Trazabilidad
+    explicacion_simple: ExplicacionSimple | None = None

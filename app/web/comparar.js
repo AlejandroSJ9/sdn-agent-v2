@@ -23,7 +23,7 @@ export async function refrescarCorridasComparables() {
     vaciar(contenedor, corridas.length ? corridas.map((c) =>
       el("label", { class: "casilla" },
         el("input", { type: "checkbox", value: c.id, checked: previas.has(c.id), onchange: limitar }),
-        ` #${c.id} · ${c.usar_llm ? "LLM" : "reglas"} · ${c.variante.replace("_", " ")}`)) : el("p", { class: "mensaje" }, "Sin corridas terminadas."));
+        ` #${c.id} · ${c.usar_llm ? "LLM" : "reglas"} · ${c.variante.replace("_", " ")} · ${(c.version_prompt ?? "—").split("-")[0]}`)) : el("p", { class: "mensaje" }, "Sin corridas terminadas."));
     limitar();
   } catch (error) {
     vaciar(contenedor, el("p", { class: "mensaje error" }, error.message));

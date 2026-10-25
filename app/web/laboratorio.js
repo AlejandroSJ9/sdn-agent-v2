@@ -120,7 +120,7 @@ export async function mostrarCorrida(id) {
     return;
   }
   corridaMostrada = id;
-  const opciones = `${c.usar_llm ? "con LLM" : "sin LLM"} · ${c.variante.replace("_", " ")} · ${c.modo_decision.replace("_", " ")} (simulado) · ${c.repeticiones} rep. · correos ${c.enviar_correos ? "sí" : "no"}`;
+  const opciones = `${c.usar_llm ? "con LLM" : "sin LLM"} · ${c.variante.replace("_", " ")} · prompt ${c.version_prompt ?? "—"} · ${c.modo_decision.replace("_", " ")} (simulado) · ${c.repeticiones} rep. · correos ${c.enviar_correos ? "sí" : "no"}`;
   vaciar($("lab-corrida"), `#${c.id} · ${c.estado} · ${opciones}`);
   vaciar($("lab-resumen"), c.resumen ? resumenCorrida(c.resumen) : el("p", { class: "mensaje" }, c.error ?? "Sin resumen todavía."));
   const filas = c.resultados.map((r) =>

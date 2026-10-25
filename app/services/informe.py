@@ -69,9 +69,9 @@ def respaldados(alerta: AlertaEntrada, evaluadas: dict, alertas_agrupadas: int, 
 
 def ensamblar(
     alerta: AlertaEntrada, evaluadas: dict, fuente_umbrales: str, salida: SalidaLLMv3, tecnica: tuple[str, bool],
-    dictamen: dict, verificacion: dict, traza: dict[str, Any],
+    dictamen: dict, verificacion: dict, traza: dict[str, Any], explicacion_simple: dict | None = None,
 ) -> dict[str, Any]:
-    """Informe completo (validado con schemas/informe.py) listo para guardar como JSON."""
+    """Informe completo (validado con schemas/informe.py) listo para guardar como JSON. Con explicacion_simple → 1.2."""
     superados = umbrales_superados(alerta)
     total, maximo = puntajes(alerta.crudo)
     if total is not None:
@@ -97,6 +97,8 @@ def ensamblar(
             "confianza_modelo": {"valor": salida.confianza}, "solidez_evidencia": solidez, "verificacion": verificacion,
         },
         trazabilidad_y_accion={**traza, "reversible": traza["accion_propuesta"] in REVERSIBLES},
+        explicacion_simple=explicacion_simple,
+        version_informe="1.2" if explicacion_simple else "1.1",
     )
     return informe.model_dump(mode="json")
 
