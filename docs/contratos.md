@@ -94,7 +94,7 @@ Formato del `asunto` (incidente con informe 1.2): `[SDN] Equipo {ip} aislado: {p
 Formato del `mensaje` (incidente con informe 1.2, máximo 25 líneas), en lenguaje simple, con títulos en MAYÚSCULAS y bloques separados por una línea en blanco:
 1. Si hubo respaldo por reglas: primera línea con el motivo en palabras.
 2. QUÉ PASÓ.
-3. POR QUÉ CREEMOS QUE ES ESTO (2 o 3 señales, con el valor real y "lo esperado es N o menos").
+3. POR QUÉ CREEMOS QUE ES ESTO (2 o 3 señales, con el valor real y lo esperado: "lo esperado es N o menos", o "lo esperado es menos de N" para las conexiones directas entre equipos; las carpetas compartidas van sin cifra).
 4. QUÉ RECOMENDAMOS (versión corta armada por el código, máx. 200 caracteres). Cierra con "Solo se aplica si un administrador la aprueba en el panel."; con mantener_drop cierra con "El equipo sigue aislado hasta que un administrador decida."
 5. QUÉ PODRÍA HACER QUE ESTEMOS EQUIVOCADOS.
 6. REFERENCIA TÉCNICA (MITRE ATT&CK): identificador, nombre y táctica del catálogo del código, más una frase simple. Se omite si no hay técnica.
@@ -121,14 +121,14 @@ El LLM solo INTERPRETA. Los hechos, umbrales, nombres MITRE, dictámenes, confia
   "justificacion_accion": "máx. 300 caracteres",
   "recomendacion_operador": "máx. 300 caracteres",
   "que_paso": "v4: máx. 250 caracteres, lenguaje simple",
-  "por_que": "v4: 2 o 3 frases simples con cifras reales",
+  "por_que": ["v4: lista de 2 o 3 frases simples con cifras reales (un texto suelto se convierte en una lista de una frase)"],
   "podria_equivocarnos": "v4: máx. 300 caracteres"
 }
 ```
 
 - `factores_ponderados`: 2 a 4 (menos de 2 invalida la salida).
 - `tecnica_id` y `accion_propuesta` se normalizan a listas cerradas. La técnica sale del catálogo del código.
-- Los campos `que_paso`, `por_que` y `podria_equivocarnos` son opcionales (prompt v4). Si faltan, tienen jerga o tienen cifras que no están en la alerta ni en los umbrales, se reemplazan por plantillas; solo la cifra inventada penaliza la confianza (C7).
+- Los campos `que_paso`, `por_que` y `podria_equivocarnos` son opcionales (prompt v4). Si faltan, tienen jerga o tienen cifras que no están en la alerta ni en los umbrales, se reemplazan por plantillas; "Qué pasó" también se reemplaza si el dictamen cambió el veredicto. Solo la cifra inventada penaliza la confianza (C7).
 - El bloque "Qué recomendamos" NO lo escribe el LLM: lo arma el código desde la escalera (C7).
 - No incluye acciones sobre la red. Si no valida → respaldo por reglas (con los mismos 4 bloques en plantillas).
 - La "confianza" del LLM es informativa: no decide. La confianza que decide la calcula el código (C7).
@@ -191,7 +191,9 @@ Vigente: RECOMENDACION_TTL_MIN. Retiradas, se aceptan sin efecto por compatibili
 MAX_ACCIONES_POR_MIN y HOSTS_PROTEGIDOS (Fase D1).
 En el laboratorio la recomendación es simulada y no llena la bandeja.
 Solo acciones.py llama a Ryu para estas acciones; desbloquear sigue siendo exclusivo del operador.
-Acciones manuales del operador (siempre disponibles): desbloquear, volver a DROP total y cuarentena de puertos
-(esta última solo si Ryu declara A6).
+Acciones manuales del operador, con sus condiciones:
+  desbloquear           → exige la API de Ryu (A5); sin ella responde 503.
+  volver a DROP total   → exige que Ryu declare A6, A7 o A8 y que el host no esté ya en DROP total.
+  cuarentena de puertos → exige que Ryu declare A6 y que el host esté en DROP total.
 Los incidentes anteriores con decision_politica "ejecutar" se conservan tal cual (registro histórico).
 ```
