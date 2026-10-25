@@ -2,7 +2,7 @@
 
 v4 = v3 + (a) cuatro reglas de lenguaje simple justo antes de "- Basa tu análisis…" y (b) tres campos nuevos al
 final de la respuesta (que_paso, por_que, podria_equivocarnos). Toda línea de v3 sigue igual en v4; solo la de
-recomendacion_operador gana una coma (tests/unit/test_prompt_v4.py). Se activa con PROMPT_V4 (temporal, medición).
+recomendacion_operador gana una coma (tests/unit/test_prompt_v4.py). Activo por defecto desde la D3.1 (PROMPT_V4).
 """
 
 from app.services.prompt import _ULTIMA_REGLA, SYSTEM_PROMPT_V30, SYSTEM_PROMPT_V31

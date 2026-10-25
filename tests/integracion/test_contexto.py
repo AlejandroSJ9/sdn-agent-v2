@@ -15,7 +15,7 @@ from app.integrations.llm import RespuestaLLM
 from app.schemas.laboratorio import AmbitoPrueba
 from app.services import pipeline
 from app.services.contexto import contexto_para
-from app.services.prompt import SYSTEM_PROMPT, SYSTEM_PROMPT_CONTEXTO
+from app.services.prompt_v4 import SYSTEM_PROMPT_V40, SYSTEM_PROMPT_V41  # Fase D3.1: v4 activo por defecto
 
 SALIDA_LLM = json.dumps({
     **SALIDA_LLM_V3, "veredicto": "confirmado", "severidad": "alta", "confianza": 0.8,  # Fase 6.8a+b: salida v3
@@ -170,9 +170,9 @@ def _guardado(motor, incidente_id) -> Incidente:
 def test_contexto_apagado_por_defecto_prompt_sin_contexto(cliente, bd_temporal, cabecera_agente, payload_c1, llm):
     incidente_id = cliente.post("/api/alertas", json=payload_c1, headers=cabecera_agente).json()["incidente_id"]
     system, usuario = llm.llamadas[0]
-    assert system == SYSTEM_PROMPT and "<contexto_host>" not in usuario
+    assert system == SYSTEM_PROMPT_V40 and "<contexto_host>" not in usuario
     i = _guardado(bd_temporal, incidente_id)
-    assert (i.variante, i.version_prompt, i.contexto_usado) == ("sin_contexto", "v3.0-sin-contexto", None)
+    assert (i.variante, i.version_prompt, i.contexto_usado) == ("sin_contexto", "v4.0-sin-contexto", None)
 
 
 def test_contexto_encendido_en_caliente(cliente, bd_temporal, cabecera_agente, cabecera_operador, payload_c1, llm):
@@ -183,9 +183,9 @@ def test_contexto_encendido_en_caliente(cliente, bd_temporal, cabecera_agente, c
 
     incidente_id = cliente.post("/api/alertas", json=payload_c1, headers=cabecera_agente).json()["incidente_id"]
     system, usuario = llm.llamadas[-1]
-    assert system == SYSTEM_PROMPT_CONTEXTO and "<contexto_host>" in usuario
+    assert system == SYSTEM_PROMPT_V41 and "<contexto_host>" in usuario
     i = _guardado(bd_temporal, incidente_id)
-    assert (i.variante, i.version_prompt) == ("con_contexto", "v3.1-contexto-historial")
+    assert (i.variante, i.version_prompt) == ("con_contexto", "v4.1-contexto-historial")
     assert i.contexto_usado["resumen"]["total_previos"] == 1
     assert json.loads(usuario.split("<contexto_host>\n")[1].split("\n</contexto_host>")[0]) == i.contexto_usado
     with Session(bd_temporal) as sesion:

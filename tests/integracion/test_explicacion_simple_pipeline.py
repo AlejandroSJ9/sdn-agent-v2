@@ -67,7 +67,8 @@ def test_con_prompt_v4_los_bloques_del_llm_llegan_al_informe_1_2(cliente, bd_tem
     assert i.informe["razonamiento"]["verificacion"]["resultado"] == "verificado"
 
 
-def test_con_prompt_v3_por_defecto_los_bloques_salen_de_plantillas(cliente, bd_temporal, cabecera_agente, payload_c1, llm):
+def test_con_prompt_v3_los_bloques_salen_de_plantillas(cliente, bd_temporal, cabecera_agente, cabecera_operador, payload_c1, llm):
+    assert cliente.put("/api/config", json={"PROMPT_V4": False}, headers=cabecera_operador).status_code == 200  # D3.1: v3 a pedido
     prompts = llm()
     i = _incidente(cliente, cabecera_agente, payload_c1)
     assert prompts == [SYSTEM_PROMPT_V30] and i.version_prompt == "v3.0-sin-contexto" and i.fuente_explicacion == "llm"
@@ -135,6 +136,6 @@ def test_la_corrida_fija_su_version_al_crearse(cliente, bd_temporal, cabecera_op
 
 
 def test_prompt_v4_se_cambia_en_caliente_y_se_audita(cliente, bd_temporal, cabecera_operador):
-    assert cliente.get("/api/config", headers=cabecera_operador).json()["PROMPT_V4"] is False
+    assert cliente.get("/api/config", headers=cabecera_operador).json()["PROMPT_V4"] is True  # D3.1: v4 por defecto
     assert cliente.put("/api/config", json={"PROMPT_V4": "si"}, headers=cabecera_operador).status_code == 422
-    assert cliente.put("/api/config", json={"PROMPT_V4": True}, headers=cabecera_operador).json()["PROMPT_V4"] is True
+    assert cliente.put("/api/config", json={"PROMPT_V4": False}, headers=cabecera_operador).json()["PROMPT_V4"] is False

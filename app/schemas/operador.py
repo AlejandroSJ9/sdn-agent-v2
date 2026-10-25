@@ -34,7 +34,7 @@ class ConfigActualizar(BaseModel):
     CONTEXTO_HABILITADO: StrictBool | None = None
     HISTORIAL_DIAS: Annotated[StrictInt, Field(ge=1, le=90)] | None = None
     CAMPANA_MINUTOS: Annotated[StrictInt, Field(ge=5, le=240)] | None = None
-    PROMPT_V4: StrictBool | None = None  # Fase D3 (temporal): v4.0 / v4.1 para medir contra v3
+    PROMPT_V4: StrictBool | None = None  # Fase D3.1: v4 por defecto; false → v3 (repetir la comparación)
     # C7: motor de políticas
     # autonomo_acotado se retiró en la Fase D1: el servicio responde 422 con el motivo
     MODO_DECISION: Literal["solo_explicar", "recomendar", "autonomo_acotado"] | None = None

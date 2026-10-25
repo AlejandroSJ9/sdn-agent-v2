@@ -43,7 +43,7 @@ def _sembrar_reciente(host="10.0.10.3") -> tuple[int, AmbitoPrueba]:
 
 def test_corrida_con_contexto_siembra_literal_y_acierta(cliente, bd_temporal, cabecera_operador):
     corrida = _corrida(cliente, cabecera_operador, casos=["LG-05", "DU-01", "AT-09", "AT-10"], variante="con_contexto")
-    assert (corrida["variante"], corrida["version_prompt"]) == ("con_contexto", "v3.1-contexto-historial")
+    assert (corrida["variante"], corrida["version_prompt"]) == ("con_contexto", "v4.1-contexto-historial")  # D3.1: v4 por defecto
     resultados = {r["caso_id"]: r for r in corrida["resultados"]}
 
     assert all(r["decidible"] for r in resultados.values())  # decidibles con contexto

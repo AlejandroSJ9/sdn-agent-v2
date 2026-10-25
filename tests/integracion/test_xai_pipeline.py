@@ -89,7 +89,7 @@ def test_atenuante_fija_veredicto_final_y_la_alucinacion_penaliza_la_confianza(
     assert r["razonamiento"]["verificacion"] == {"resultado": "posible_alucinacion", "numeros_no_respaldados": ["10.0.0.99", "445"]}
     assert _auditados(bd_temporal, "verificacion_informe")[0]["resultado"] == "posible_alucinacion"
     t = r["trazabilidad_y_accion"]
-    assert (t["modelo"], t["version_prompt"], t["origen_accion"]) == ("modelo-configurado/prueba", "v3.1-contexto-historial", "escalera")
+    assert (t["modelo"], t["version_prompt"], t["origen_accion"]) == ("modelo-configurado/prueba", "v4.1-contexto-historial", "escalera")
     assert (t["confianza_calculada"]["total"], t["confianza_calculada"]["penalizacion"]) == (0.6, 0.2)
     assert t["escalera"]["modificada_por_dictamen"] is False and t["accion_sugerida_llm"] == "mantener"
     explicacion_auditada = [a for a in _auditados(bd_temporal, "explicacion_generada") if a["incidente_id"] == i.id]

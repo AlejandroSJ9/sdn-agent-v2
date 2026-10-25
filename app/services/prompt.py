@@ -7,8 +7,8 @@ experimento de la Fase 6.7 y poder reproducirlo.
 Fase 6.8a+b: ACTIVOS v3.0 (sin contexto) y v3.1 (con contexto). El LLM ya no redacta explicación ni
 evidencias libres: solo interpreta (campos de SalidaLLMv3). <datos_red> trae umbrales y desviaciones
 calculados por código y <contexto_host> el dictamen determinista. v2.2, v2.3 y v2.4 se conservan SIN USO.
-Fase D3: v4.0 / v4.1 (services/prompt_v4.py) = v3.0 / v3.1 + explicación simple; se eligen con PROMPT_V4 (temporal,
-para medir). Con PROMPT_V4=false siguen activos v3.0 / v3.1.
+Fase D3: v4.0 / v4.1 (services/prompt_v4.py) = v3.0 / v3.1 + explicación simple. Fase D3.1: v4 ACTIVO por defecto
+(PROMPT_V4=true) tras la medición; PROMPT_V4=false vuelve a v3.0 / v3.1, que se conservan para repetir la comparación.
 """
 
 import json
@@ -165,8 +165,8 @@ for _antes, _despues in _CAMBIOS_V31:
     assert SYSTEM_PROMPT_V31.count(_antes) == 1, _antes
     SYSTEM_PROMPT_V31 = SYSTEM_PROMPT_V31.replace(_antes, _despues)
 
-SYSTEM_PROMPT = SYSTEM_PROMPT_V30  # activo sin contexto
-SYSTEM_PROMPT_CONTEXTO = SYSTEM_PROMPT_V31  # activo con contexto
+SYSTEM_PROMPT = SYSTEM_PROMPT_V30  # v3 sin contexto (activo solo con PROMPT_V4=false desde la D3.1)
+SYSTEM_PROMPT_CONTEXTO = SYSTEM_PROMPT_V31  # v3 con contexto (ídem)
 
 VERSION_SIN_CONTEXTO = "v3.0-sin-contexto"
 VERSION_CON_CONTEXTO = "v3.1-contexto-historial"

@@ -76,7 +76,7 @@ def dedup_segundos() -> int:
 
 
 def prompt_v4() -> bool:
-    """Fase D3 (temporal): True → prompts v4.0 / v4.1 (explicación simple)."""
+    """Fase D3.1: True (por defecto) → prompts v4.0 / v4.1; False → v3.0 / v3.1 (repetir la comparación)."""
     return obtener()["PROMPT_V4"]
 
 
