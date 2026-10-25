@@ -191,9 +191,24 @@ Vigente: RECOMENDACION_TTL_MIN. Retiradas, se aceptan sin efecto por compatibili
 MAX_ACCIONES_POR_MIN y HOSTS_PROTEGIDOS (Fase D1).
 En el laboratorio la recomendación es simulada y no llena la bandeja.
 Solo acciones.py llama a Ryu para estas acciones; desbloquear sigue siendo exclusivo del operador.
-Acciones manuales del operador, con sus condiciones:
-  desbloquear           → exige la API de Ryu (A5); sin ella responde 503.
-  volver a DROP total   → exige que Ryu declare A6, A7 o A8 y que el host no esté ya en DROP total.
-  cuarentena de puertos → exige que Ryu declare A6 y que el host esté en DROP total.
-Los incidentes anteriores con decision_politica "ejecutar" se conservan tal cual (registro histórico).
+Acciones manuales del operador (Fase D5), con sus condiciones:
+  desbloquear             exige la API de Ryu (A5) y que el host esté bloqueado; sin A5 responde 503.
+  volver a DROP total     exige que Ryu declare A6, A7 o A8 y que el host no esté ya en DROP total.
+  cuarentena de puertos   exige que Ryu declare A6 y que el host esté en DROP total.
+  limitar tasa            exige que Ryu declare A7 y que el host esté en DROP total (kbps = LIMITE_TASA_KBPS).
+  cuarentena en VLAN      exige que Ryu declare A8 y que el host esté en DROP total.
+Si la acción manual coincide con una recomendación pendiente y vigente del mismo host, se ejecuta como aprobación
+de esa recomendación (queda "ejecutada" o "fallida"); nunca se ejecuta dos veces.
+
+GET /api/hosts/{ip}/acciones (X-Operador-Token): lo que el operador puede hacer ahora con ese host.
+  Vuelve a leer las capacidades de Ryu en cada llamada (no usa la caché).
+  {"ip", "modo": "drop_total" | "cuarentena" | "limitado" | "vlan_cuarentena" | null,
+   "capacidades": {"cuarentena", "limitar_tasa", "cuarentena_vlan"},
+   "acciones": [{"accion", "etiqueta", "efecto", "disponible", "motivo", "recomendada", "recomendacion_id", "confianza"}]}
+  Las 5 acciones siempre aparecen, en este orden: cuarentena_puertos, limitar_tasa, cuarentena_vlan, bloqueo_total,
+  desbloquear. "motivo" explica por qué no está disponible (null si lo está). "recomendada" es true solo si hay una
+  recomendación pendiente y vigente de esa acción para ese host. Host no bloqueado: modo null y todas no disponibles.
+  401 sin token · 422 ip inválida · 503 si Ryu no responde.
+POST /api/hosts/{ip}/limitar_tasa y POST /api/hosts/{ip}/cuarentena_vlan: igual que /cuarentena
+  (409 si no aplica, 502 si Ryu no la aplicó; con verificación y reversión a DROP total).
 ```

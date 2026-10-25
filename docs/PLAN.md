@@ -16,23 +16,21 @@
 | 5 | Panel 360 (lectura + acciones) | No | No | ✅ |
 | 6 | Laboratorio: escenarios, pruebas y exportación desde el panel | No | Opcional | ✅ |
 | 6.5 | Endurecimiento antes de datos reales | No | No | ✅ |
-| 6.6 | Alineación con el Ryu real (mock = especificación A1–A6, validador, rechazadas visibles) | No (usa la especificación) | No | ⏳ |
-| 6.7 | Contexto dinámico desde el historial + clasificación del operador | No | Sí (4 corridas) | ⏳ |
-| 6.8 | Decisión acotada del LLM: propuesta + motor de políticas + modos | No (sin A6 queda en `recomendar`) | Sí | ⏳ |
-| 6.9 | Evaluación de decisiones (acciones esperadas, daño autoinfligido) | No | Sí | ⏳ |
-Cancelada (se usa Laboratorio + Comparar corridas) de 6.6 - 6.9.
-
-| 7 | Integración real Mininet + scripts de ataque | **Sí (A1–A5; A6 opcional)** | Sí | ⏳ |
-| 8 | Evaluación final (objetivo 3) | Sí | Sí | ⏳ |
-| Libre | Rediseño visual SOC (solo presentación) | No | No | ⏳ |
+| 6.6 | Alineación con el Ryu real (mock = especificación A1–A6, validador, rechazadas visibles) | No (usa la especificación) | No | ✅ |
+| 6.7 | Contexto dinámico desde el historial + clasificación del operador | No | Sí (4 corridas) | ✅ |
+| 6.8 | Decisión acotada del LLM: propuesta + motor de políticas + modos | No | Sí | ✅ |
+| 6.9 | Evaluación de decisiones (acciones esperadas, daño autoinfligido) | No | Sí | Cancelada (se usa Laboratorio + Comparar corridas) |
 | 6.10 | QA previo a la integración (F1–F6: Ryu sin A5, ruta /alert, tamaño, respaldo visible, veredicto_llm) | No | No | ✅ |
 | 9a | Confianza calculada y escalera de respuesta (recomendación) | No | Sí | ✅ |
 | 9b | Ejecución de la escalera contra el mock (A6, A7, A8) con verificación y reversión | Mock | Sí | ✅ |
+| D | Depuración D1–D4: solo recomienda, lenguaje simple, prompt v4, correo simple | No | Sí (medición v3 vs v4) | ✅ |
+| 7 | Integración real Mininet + scripts de ataque | **Sí (A1–A5; A6–A8 para la escalera)** | Sí | ⏳ |
+| 8 | Evaluación final (objetivo 3) | Sí | Sí | ⏳ |
+| Libre | Rediseño visual SOC (solo presentación) | No | No | ⏳ |
 
 **Datos experimentales hasta ahora (Fase 6):** con solo métricas, LLM y reglas obtienen la misma exactitud (9/10 en decidibles) y coinciden en 17 de 18 veredictos; el LLM tarda ~600 veces más. Los casos legítimos no son distinguibles sin contexto. Esto motiva las fases 6.7–6.9.
 
 Cómo usar cada prompt: abre Claude Code en la raíz del repo y pega el bloque tal cual.
-
 ---
 
 ## Fase 0 — Esqueleto
@@ -444,3 +442,82 @@ Nota: la cuarentena de puertos administrativos (A6) SÍ entra, como opción de l
 | El contexto o el historial se envenenan | Solo las clasificaciones del operador cuentan como verificadas; el prompt trata el historial como evidencia, no como absolución; todo cambio queda auditado. |
 | Claude Code expande alcance | CLAUDE.md §4, un prompt por fase, `docs/ideas.md` como válvula. |
 | Llama 8B inconsistente | Su veredicto es informativo; la decisión es de Ryu y del operador. Se mide concordancia, no se depende de ella. |
+
+
+
+## Fase D5a - Acciones del operador (backend)
+
+Prompt:
+
+    Implementa SOLO la "Fase D5a" de docs/PLAN.md. Lee CLAUDE.md y docs/contratos.md (C2 y C7, bloque "Acciones manuales del operador (Fase D5)").
+
+    Alcance:
+    1. GET /api/hosts/{ip}/acciones exactamente como dice C7: las 5 acciones en el orden del contrato, con disponible, motivo, recomendada, recomendacion_id y confianza. Lee las capacidades de Ryu con refrescar=True en cada llamada.
+    2. POST /api/hosts/{ip}/limitar_tasa y POST /api/hosts/{ip}/cuarentena_vlan, por el mismo camino que /cuarentena, con las condiciones de C7.
+    3. Si la accion manual coincide con una recomendacion pendiente y vigente del mismo host, se ejecuta con recomendaciones.aprobar (una sola ejecucion).
+    4. GET /api/ryu/estado tambien refresca las capacidades.
+
+    Reglas: todo pasa por services/acciones.py, con verificacion y reversion. Nada se ejecuta sin una peticion del operador. No toques el panel (eso es D5b), ni el LLM, ni la escalera. Si un archivo de app/ pasa de 250 lineas, avisa.
+
+    Paso 1: valida y propone en maximo 5 lineas. Espera mi aprobacion.
+    Paso 2: implementa con pruebas unitarias y de integracion (con el mock).
+    Paso 3: pytest -q y resumen de maximo 8 lineas. No hagas git add ni commit.
+
+Prueba de aceptacion (mock completo, agente y curls en terminales separadas):
+
+Terminal 1, mock:
+    cd ~/Desktop/sdn-agent-v2 && source .venv/bin/activate
+    unset $(grep -E '^[A-Z_]+=' .env | cut -d= -f1); set -a; source .env; set +a
+    MOCK_CUARENTENA=1 MOCK_LIMITAR_TASA=1 MOCK_CUARENTENA_VLAN=1 python tests/mock_ryu.py
+
+Terminal 2, agente:
+    cd ~/Desktop/sdn-agent-v2 && source .venv/bin/activate
+    unset $(grep -E '^[A-Z_]+=' .env | cut -d= -f1); uvicorn app.main:app --port 8081
+
+Terminal 3, curls (uno por uno):
+    cd ~/Desktop/sdn-agent-v2 && set -a; source .env; set +a
+    curl -s -X POST localhost:8080/mock/bloquear/10.0.10.5 -H "X-Agent-Token: $AGENT_TOKEN"
+    curl -s localhost:8081/api/hosts/10.0.10.5/acciones -H "X-Operador-Token: $OPERADOR_TOKEN" | python -m json.tool
+Esperado: modo drop_total; cuarentena_puertos, limitar_tasa, cuarentena_vlan y desbloquear disponibles; bloqueo_total no disponible, con motivo.
+    curl -s -X POST localhost:8081/api/hosts/10.0.10.5/limitar_tasa -H "X-Operador-Token: $OPERADOR_TOKEN"
+Esperado: ejecutada, modo limitado, kbps.
+    curl -s localhost:8081/api/hosts/10.0.10.5/acciones -H "X-Operador-Token: $OPERADOR_TOKEN" | python -m json.tool
+Esperado: modo limitado; solo bloqueo_total y desbloquear disponibles.
+    curl -s -X POST localhost:8081/api/hosts/10.0.10.5/bloqueo_total -H "X-Operador-Token: $OPERADOR_TOKEN"
+    curl -s -X POST localhost:8081/api/hosts/10.0.10.5/cuarentena_vlan -H "X-Operador-Token: $OPERADOR_TOKEN"
+Esperado: drop_total y luego vlan_cuarentena con vlan 999.
+    curl -s -o /dev/null -w "%{http_code}\n" -X POST localhost:8081/api/hosts/10.0.10.5/cuarentena -H "X-Operador-Token: $OPERADOR_TOKEN"
+Esperado: 409.
+    curl -s localhost:8081/api/hosts/10.0.10.99/acciones -H "X-Operador-Token: $OPERADOR_TOKEN" | python -m json.tool
+Esperado: modo null y todas no disponibles.
+    curl -s -o /dev/null -w "%{http_code}\n" localhost:8081/api/hosts/abc/acciones -H "X-Operador-Token: $OPERADOR_TOKEN"
+Esperado: 422.
+Luego reinicia el mock SIN las tres variables MOCK_ (sin reiniciar el agente):
+    curl -s -X POST localhost:8080/mock/bloquear/10.0.10.5 -H "X-Agent-Token: $AGENT_TOKEN"
+    curl -s localhost:8081/api/hosts/10.0.10.5/acciones -H "X-Operador-Token: $OPERADOR_TOKEN" | python -m json.tool
+Esperado: solo desbloquear disponible; las otras con el motivo "Ryu no declara ...".
+
+## Fase D5b - Panel: boton "Acciones"
+
+Prompt:
+
+    Implementa SOLO la "Fase D5b" de docs/PLAN.md. Lee CLAUDE.md y docs/contratos.md (C7, bloque de la Fase D5). D5a ya esta hecha.
+
+    Alcance (solo app/web):
+    1. Un boton "Acciones" en el detalle del incidente (si el host sigue bloqueado en Ryu) y en cada fila de "Hosts bloqueados". Reemplaza los botones actuales de cuarentena, volver a DROP total y desbloquear de esa fila.
+    2. Al abrirlo pide GET /api/hosts/{ip}/acciones (siempre fresco) y muestra solo las acciones disponibles, cada una con su etiqueta y su efecto en una linea. La recomendada lleva la marca "Recomendada" y su confianza.
+    3. Debajo, en texto pequeno, las no disponibles con su motivo.
+    4. Al elegir una: confirmacion con el efecto, el POST que corresponda, el resultado (ejecutada, fallida o revertida) y el refresco de la tabla y del detalle. Desbloquear abre el modal de desbloqueo que ya existe.
+    5. Si la consulta responde 503, el menu dice "Ryu no responde" y no ofrece acciones.
+
+    Reglas: sin frameworks ni dependencias. No toques app/api ni app/services. Si un archivo pasa de 250 lineas, avisa.
+
+    Paso 1: valida y propone en maximo 5 lineas. Espera mi aprobacion.
+    Paso 2: implementa. pytest -q y resumen de maximo 8 lineas. No hagas git add ni commit.
+
+Prueba de aceptacion (mock completo y agente, como en D5a; en http://localhost:8081):
+1. Con 10.0.10.5 bloqueado en el mock: en Hosts bloqueados, "Acciones" muestra cuarentena de puertos, limitar tasa, cuarentena VLAN y desbloquear.
+2. Elegir limitar tasa: confirmacion, resultado "ejecutada" y la fila muestra "Tasa limitada (1000 kbps)". "Acciones" ahora solo ofrece volver a DROP total y desbloquear.
+3. Volver a DROP total y luego desbloquear con el modal: el host sale de la tabla.
+4. Con un incidente real que tenga una recomendacion pendiente, la accion recomendada aparece marcada con su confianza. Las del laboratorio no sirven: son simuladas.
+5. Con el mock apagado: "Acciones" dice "Ryu no responde".
