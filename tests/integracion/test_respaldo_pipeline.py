@@ -42,11 +42,11 @@ def test_timeout_avisa_el_respaldo_en_correo_y_api(cliente, cabecera_agente, cab
     incidente_id = cliente.post("/api/alertas", json=payload_c1, headers=cabecera_agente).json()["incidente_id"]
 
     [enviado] = correo
-    assert enviado["asunto"] == "[SDN] Host 10.0.0.3 aislado por posible movimiento lateral [respaldo por reglas]"
+    assert enviado["asunto"].endswith(" [respaldo por reglas]")  # Fase D4: correo en lenguaje simple
     lineas = enviado["mensaje"].splitlines()
     assert lineas[0] == "Explicación de respaldo por reglas: el modelo no respondió a tiempo. Revisar en el panel."
-    assert 3 <= len(lineas) <= 6
-    assert "(sin LLM: respaldo por reglas" in lineas[3] and "LLM: confirmado" not in enviado["mensaje"]
+    assert lineas[1:3] == ["", "QUÉ PASÓ"] and len(lineas) <= 25
+    assert "LLM: confirmado" not in enviado["mensaje"]
     assert "proveedor/modelo-z" not in enviado["mensaje"]
 
     detalle = cliente.get(f"/api/incidentes/{incidente_id}", headers=cabecera_operador).json()

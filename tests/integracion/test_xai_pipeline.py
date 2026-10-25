@@ -119,14 +119,19 @@ def test_sin_dictamen_manda_el_llm_y_el_informe_queda_verificado(cliente, bd_tem
     assert i.informe["razonamiento"]["dictamen_historial"] == {"tipo": None, "veredicto": None, "motivo": None}
 
 
-def test_correo_en_4_lineas_mas_enlace(cliente, bd_temporal, cabecera_agente, payload_c1, llm):
+def test_correo_en_lenguaje_simple_4_bloques_y_mitre(cliente, bd_temporal, cabecera_agente, payload_c1, llm):
+    """Fase D4: informe 1.2 → 4 bloques, referencia MITRE del catálogo y sin enlace (lo agrega Apps Script)."""
     llm()
     i = _alerta(cliente, cabecera_agente, payload_c1)
     with Session(bd_temporal) as sesion:
-        lineas = sesion.scalars(select(Notificacion)).one().payload["mensaje"].splitlines()
-    assert [l.split(":")[0] for l in lineas] == ["Evidencia", "MITRE", "Razonamiento", "Acción recomendada", "Informe completo"]
-    assert lineas[3] == "Acción recomendada: Cuarentena de puertos (confianza 0.80)"  # Fase 9a: confirmado, 80/135
-    assert lineas[-1] == f"Informe completo: http://localhost:8081/#/incidentes/{i.id}"
+        enviado = sesion.scalars(select(Notificacion)).one().payload
+    lineas = enviado["mensaje"].splitlines()
+    titulos = ["QUÉ PASÓ", "POR QUÉ CREEMOS QUE ES ESTO", "QUÉ RECOMENDAMOS", "QUÉ PODRÍA HACER QUE ESTEMOS EQUIVOCADOS",
+               "REFERENCIA TÉCNICA (MITRE ATT&CK)"]
+    assert [l for l in lineas if l.isupper() and not l.startswith("T1")] == titulos
+    assert lineas[lineas.index("QUÉ RECOMENDAMOS") + 1].startswith("Cuarentena de puertos: conserva lo básico de la red, sin caminos para saltar a otros equipos. Confianza media.")  # confirmado, 80/135
+    assert lineas[-2] == "T1021.002 - Remote Services: SMB/Windows Admin Shares (Lateral Movement)"
+    assert "http" not in enviado["mensaje"] and enviado["enlace_panel"] == f"http://localhost:8081/#/incidentes/{i.id}"
 
 
 def test_laboratorio_cuenta_dictamenes_y_alucinaciones(cliente, cabecera_operador, llm):

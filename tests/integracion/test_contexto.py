@@ -204,14 +204,16 @@ def test_reglas_con_contexto_en_incidente_real(cliente, bd_temporal, cabecera_ag
                                 "dictamen_historial": {"tipo": None, "veredicto": None, "motivo": None}}  # Fase 6.8a
 
 
-def test_correo_lleva_la_linea_de_contexto(cliente, bd_temporal, cabecera_agente, cabecera_operador, payload_c1):
+def test_correo_simple_no_lleva_la_linea_de_contexto(cliente, bd_temporal, cabecera_agente, cabecera_operador, payload_c1):
+    """Fase D4 (decisión E): el formato simple no lleva la línea "Contexto: …" (el formato anterior sí: test_notificacion_payload)."""
     from app.db.models import Notificacion
 
     cliente.put("/api/config", json={"CONTEXTO_HABILITADO": True}, headers=cabecera_operador)
     cliente.post("/api/alertas", json=payload_c1, headers=cabecera_agente)
     with Session(bd_temporal) as sesion:
         mensaje = sesion.scalars(select(Notificacion)).one().payload["mensaje"]
-    assert "Contexto: 0 incidentes previos del host (0 falsos positivos verificados)" in mensaje
+    assert "Contexto:" not in mensaje and mensaje.splitlines()[:3] == [
+        "Explicación de respaldo por reglas: el LLM está deshabilitado desde el panel. Revisar en el panel.", "", "QUÉ PASÓ"]
 
 
 def test_sembrado_de_repository_contexto_tiene_alerta_minima(bd_temporal):

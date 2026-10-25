@@ -43,7 +43,7 @@ class Settings(BaseSettings):
     RYU_URL: str = "http://localhost:8080"
     OPENROUTER_API_KEY: str = ""
     LLM_MODELO: str = ""  # OBLIGATORIO: se define en .env; no hay modelo fijo en el código
-    LLM_TIMEOUT: float = 20
+    LLM_TIMEOUT: float = 60  # Fase D4: alineado con .env.example (v4 genera más texto)
     LLM_HABILITADO: bool = True
     LLM_CUPO_DIARIO: int = 1000
     APPSCRIPT_URL: str = ""

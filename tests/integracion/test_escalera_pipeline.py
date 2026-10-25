@@ -73,7 +73,9 @@ def test_una_alerta_por_escalon_con_desglose_recalculable(
         assert recomendaciones == [] and i.decision_politica == "descartar"
     else:
         assert [(r.accion, r.confianza) for r in recomendaciones] == [(accion, total)]
-    assert correo[3].startswith("Acción recomendada: ")
+    recomendamos = correo[correo.index("QUÉ RECOMENDAMOS") + 1]  # Fase D4: bloque corto, cierre según la acción
+    assert recomendamos.endswith("hasta que un administrador decida." if accion == "mantener_drop"
+                                 else "Solo se aplica si un administrador la aprueba en el panel.")
     assert t["reversible"] is True
 
 

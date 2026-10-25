@@ -8,6 +8,7 @@ Revisión de cada bloque del LLM (verificador.verificar_bloques):
   - jerga (M1…M5, MITRE, SMB, umbral…) → solo se reemplaza;
   - "Qué pasó" se reemplaza si el dictamen cambió el veredicto (nunca contradice el veredicto final).
 Las plantillas no llevan cifras del contexto: el historial se cuenta con palabras. Funciones puras (sin BD ni red).
+Fase D4: recomendacion_corta() es la versión del bloque 3 para el correo (≤ 200 caracteres, mismas reglas).
 """
 
 from typing import Any
@@ -53,6 +54,21 @@ CIERRE_MANTENER = " El equipo sigue aislado hasta que un administrador decida."
 MOTIVOS_AGRAVANTE = (("últimos 60 min", "este mismo equipo tuvo un ataque confirmado en la última hora"),
                      ("amenaza", "un administrador ya contuvo un ataque en este equipo"),
                      ("hosts confirmados", "hay otros equipos de la red con ataques confirmados ahora mismo"))
+
+# ---- Bloque 3 corto para el correo (Fase D4, ≤ 200 caracteres) ----
+MAX_CORTA = 200
+CORTA_INDETERMINADO = "Mantener el equipo aislado: no está claro si es un ataque."
+CORTA_BAJA = "Mantener el equipo aislado: {veredicto}, pero la confianza es baja."
+CORTA = {"limitar_tasa": "Devolverle la red a velocidad reducida: parece una falsa alarma. Confianza {nivel}.",
+         "cuarentena_puertos": ("Cuarentena de puertos: conserva lo básico de la red, sin caminos para saltar a otros "
+                                "equipos. Confianza {nivel}."),
+         "cuarentena_vlan": "Mover el equipo a una red de cuarentena separada. Confianza {nivel}."}
+CORTA_AGRAVANTE = "Mantener el equipo aislado: el historial muestra señales graves, aunque la confianza permitía relajarlo."
+CORTA_CONTRADICCION = ("Mantener el equipo aislado: el análisis y el historial del administrador se contradicen; "
+                       "decide una persona.")
+CORTA_DEFENSA = "Mantener el equipo aislado: el análisis es contradictorio; decide una persona."
+CORTA_EXTRA = {"agravante": " El historial muestra señales graves.", "atenuante": " Un administrador ya lo marcó como falsa alarma."}
+CIERRE_CORTO_RELAJAR = " Solo se aplica si un administrador la aprueba en el panel."
 
 # ---- Bloques 1, 2 y 4 por plantilla (respaldo por reglas, LLM sin el bloque o bloque reemplazado) ----
 QUE_PASO = {
@@ -120,6 +136,20 @@ def bloque_recomendacion(resultado: dict[str, Any], confianza: dict[str, Any], d
         elif tipo == "atenuante":
             texto += ATENUANTE_EXTRA
     return texto + (CIERRE_MANTENER if accion == "mantener_drop" else CIERRE_RELAJAR)
+
+
+def recomendacion_corta(resultado: dict[str, Any], confianza: dict[str, Any], dictamen: dict[str, Any] | None) -> str:
+    """Bloque 3 del correo: acción, confianza en palabras y, si aplica, el dictamen. Nunca del LLM."""
+    accion, tipo = resultado["accion_recomendada"], (dictamen or {}).get("tipo")
+    nivel = nivel_confianza(confianza["total"], resultado["umbrales"]["ESCALON_HITL"], resultado["umbrales"]["ESCALON_VLAN"])
+    if resultado["modificada_por_dictamen"]:
+        texto = (CORTA_AGRAVANTE if tipo == "agravante"
+                 else CORTA_CONTRADICCION if resultado["motivo_modificacion"] == MOTIVO_CONTRADICCION else CORTA_DEFENSA)
+    else:
+        texto = (CORTA[accion].format(nivel=nivel) if accion in CORTA else CORTA_INDETERMINADO if nivel is None
+                 else CORTA_BAJA.format(veredicto=VEREDICTO[confianza["veredicto_usado"]]))
+        texto += CORTA_EXTRA.get(tipo, "")
+    return texto + (CIERRE_MANTENER if accion == "mantener_drop" else CIERRE_CORTO_RELAJAR)
 
 
 def _numero(valor: float) -> str:

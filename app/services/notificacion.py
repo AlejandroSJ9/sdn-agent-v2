@@ -1,4 +1,9 @@
-"""Notificación por correo (Apps Script): arma el payload C3, envía, guarda, audita y emite el evento."""
+"""Notificación por correo (Apps Script): arma el payload C3, envía, guarda, audita y emite el evento.
+
+Fase D4: un incidente con informe 1.2 (explicacion_simple) se envía en lenguaje simple: 4 bloques, la referencia
+MITRE (de la lista cerrada del código) y sin enlace en el mensaje (Apps Script agrega enlace_panel). Informes 1.0 y
+1.1, desbloqueo y prueba conservan el formato anterior (3 a 6 líneas).
+"""
 
 import logging
 import time
@@ -9,7 +14,7 @@ from app.db import repository
 from app.integrations import appscript
 from app.schemas.alerta import IncidenteSalida
 from app.schemas.notificacion import PayloadC3, ResultadoNotificacion
-from app.services import auditoria, eventos, informe as informe_svc
+from app.services import auditoria, eventos, explicacion_simple, informe as informe_svc
 
 logger = logging.getLogger(__name__)
 
@@ -74,10 +79,47 @@ def _linea_accion(incidente: IncidenteSalida) -> str:
     return "Acción: se mantiene el bloqueo total"
 
 
+# ---- Fase D4: correo en lenguaje simple ----
+QUE_ASUNTO = {"confirmado": "posible ransomware", "indeterminado": "actividad sospechosa",
+              "falso_positivo": "probable falsa alarma"}
+ACCION_ASUNTO = {"mantener_drop": "mantenerlo aislado", "limitar_tasa": "devolverle la red a velocidad reducida",
+                 "cuarentena_puertos": "cuarentena de puertos", "cuarentena_vlan": "cuarentena en una red separada"}
+TITULOS = ("QUÉ PASÓ", "POR QUÉ CREEMOS QUE ES ESTO", "QUÉ RECOMENDAMOS", "QUÉ PODRÍA HACER QUE ESTEMOS EQUIVOCADOS")
+TITULO_MITRE = "REFERENCIA TÉCNICA (MITRE ATT&CK)"
+FRASE_MITRE = {  # una por técnica de informe.CATALOGO_MITRE
+    "T1021.002": "Técnica en la que un atacante usa las carpetas compartidas de Windows para saltar de un equipo a otro.",
+    "T1021.001": ("Técnica en la que un atacante usa el escritorio remoto de Windows para entrar a otros equipos como "
+                  "si estuviera sentado frente a ellos."),
+    "T1021.006": "Técnica en la que un atacante usa la administración remota de Windows para dar órdenes a otros equipos.",
+    "T1046": "Técnica en la que un atacante revisa la red para descubrir qué equipos y servicios hay antes de atacarlos.",
+    "T1570": "Técnica en la que un atacante copia sus herramientas o programas maliciosos de un equipo a otro de la red.",
+    "T1021": "Técnica en la que un atacante usa servicios de acceso remoto legítimos para entrar a otros equipos de la red.",
+}
+
+
+def _asunto_simple(incidente: IncidenteSalida) -> str:
+    accion = incidente.informe["trazabilidad_y_accion"]["accion_propuesta"]
+    return (f"[SDN] Equipo {incidente.host_origen} aislado: {QUE_ASUNTO.get(incidente.veredicto, 'actividad sospechosa')}. "
+            f"Recomendación: {ACCION_ASUNTO.get(accion, 'mantenerlo aislado')}")
+
+
+def _lineas_simples(informe: dict) -> list[str]:
+    """Los 4 bloques (el 3 en su versión corta, armada por el código) y la sección MITRE, separados por una línea en blanco."""
+    simple, traza, mitre = informe["explicacion_simple"], informe["trazabilidad_y_accion"], informe["mitre"]
+    corta = explicacion_simple.recomendacion_corta(traza["escalera"], traza["confianza_calculada"],
+                                                   informe["razonamiento"]["dictamen_historial"])
+    cuerpos = ([simple["que_paso"]], [f"- {frase}" for frase in simple["por_que"]], [corta], [simple["podria_equivocarnos"]])
+    lineas = [linea for titulo, cuerpo in zip(TITULOS, cuerpos) for linea in (titulo, *cuerpo, "")]
+    if mitre.get("tecnica_id") in FRASE_MITRE:
+        lineas += [TITULO_MITRE, f"{mitre['tecnica_id']} - {mitre['nombre']} ({mitre['tactica'].split(' (')[0]})",
+                   FRASE_MITRE[mitre["tecnica_id"]]]
+    return lineas[:-1] if lineas[-1] == "" else lineas
+
+
 def construir_payload(
     incidente: IncidenteSalida | None, tipo: str, host: str | None = None, motivo: str | None = None
 ) -> PayloadC3:
-    """Payload C3 en texto plano (3 a 6 líneas). En "prueba" el incidente se ignora.
+    """Payload C3 en texto plano (3 a 6 líneas; informe 1.2: hasta 25). En "prueba" el incidente se ignora.
 
     Un "desbloqueo" sin incidente abierto usa `host`; `motivo` es el que escribió el operador.
     """
@@ -116,7 +158,10 @@ def construir_payload(
         asunto = f"[SDN] Host {incidente.host_origen} aislado por posible movimiento lateral"
         explicacion = " ".join((incidente.explicacion or "—").split())[:MAX_EXPLICACION]
         fuente = {"llm": "LLM", "reglas": "reglas"}.get(incidente.fuente_explicacion or "", "—")
-        if incidente.informe:  # Fase 6.8b: una línea por dimensión del informe + enlace (C3: 3 a 6 líneas)
+        simple = bool(incidente.informe and incidente.informe.get("explicacion_simple"))
+        if simple:  # Fase D4: lenguaje simple
+            asunto, lineas = _asunto_simple(incidente), _lineas_simples(incidente.informe)
+        elif incidente.informe:  # Fase 6.8b: una línea por dimensión del informe + enlace (C3: 3 a 6 líneas)
             evidencia, mitre, razonamiento, _ = informe_svc.lineas(incidente.informe, incidente.severidad)
             lineas = [evidencia, mitre, f"{razonamiento} · {_linea_contexto(incidente)}",  # contexto: Fase 6.7
                       _linea_accion(incidente),  # acción: mismas frases de la Fase 6.8
@@ -135,7 +180,8 @@ def construir_payload(
                 lineas[-2:] = [f"{lineas[-2]} · {CIERRE_INCIDENTE}"]
         if incidente.fuente_explicacion == "reglas":  # el operador debe ver que no hubo LLM y por qué
             asunto += SUFIJO_RESPALDO
-            lineas.insert(0, f"Explicación de respaldo por reglas: {incidente.motivo_respaldo_legible}. Revisar en el panel.")
+            respaldo = f"Explicación de respaldo por reglas: {incidente.motivo_respaldo_legible}. Revisar en el panel."
+            lineas[:0] = [respaldo, ""] if simple else [respaldo]
     return PayloadC3(
         tipo=tipo,
         incidente_id=incidente.id,

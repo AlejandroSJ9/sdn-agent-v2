@@ -95,11 +95,15 @@ def _correo(motor) -> str:
 
 # ---- Por escalón: queda como recomendación y aprobarla la ejecuta ----
 
+# Fase D4: "texto" es el bloque QUÉ RECOMENDAMOS del correo en lenguaje simple (versión corta, armada por el código)
 @pytest.mark.parametrize(("salida", "puntaje", "accion", "modo", "texto"), [
-    ({"veredicto": "indeterminado"}, 60, "mantener_drop", "drop_total", "Acción recomendada: Mantener DROP total"),
-    ({"veredicto": "falso_positivo"}, 60, "limitar_tasa", "limitado", "Acción recomendada: Limitar tasa (confianza 0.78)"),
-    ({"veredicto": "confirmado"}, None, "cuarentena_puertos", "cuarentena", "Acción recomendada: Cuarentena de puertos (confianza 0.80)"),
-    ({"veredicto": "confirmado"}, 135, "cuarentena_vlan", "vlan_cuarentena", "Acción recomendada: Cuarentena en VLAN (confianza 1.00)"),
+    ({"veredicto": "indeterminado"}, 60, "mantener_drop", "drop_total",
+     "Mantener el equipo aislado: no está claro si es un ataque. El equipo sigue aislado hasta que un administrador decida."),
+    ({"veredicto": "falso_positivo"}, 60, "limitar_tasa", "limitado",
+     "Devolverle la red a velocidad reducida: parece una falsa alarma. Confianza media. Solo se aplica si un administrador"),
+    ({"veredicto": "confirmado"}, None, "cuarentena_puertos", "cuarentena", "Cuarentena de puertos: conserva lo básico de la red, sin caminos para saltar a otros equipos. Confianza media."),
+    ({"veredicto": "confirmado"}, 135, "cuarentena_vlan", "vlan_cuarentena",
+     "Mover el equipo a una red de cuarentena separada. Confianza alta."),
 ])
 def test_cada_escalon_se_recomienda_y_al_aprobarlo_se_ejecuta_y_verifica(
     cliente, bd_temporal, cabecera_agente, cabecera_operador, payload_c1, llm, ryu, salida, puntaje, accion, modo, texto

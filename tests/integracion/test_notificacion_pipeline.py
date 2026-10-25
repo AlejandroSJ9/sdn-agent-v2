@@ -51,7 +51,8 @@ def test_alerta_nueva_genera_un_envio_y_la_agrupada_no(
     enviado = apps_script.payloads[0]
     assert (enviado["tipo"], enviado["incidente_id"], enviado["host"]) == ("incidente", incidente_id, "10.0.0.3")
     # LLM apagado en bd_temporal: respaldo por reglas, visible en el asunto (QA F6)
-    assert enviado["asunto"] == "[SDN] Host 10.0.0.3 aislado por posible movimiento lateral [respaldo por reglas]"
+    assert enviado["asunto"] == ("[SDN] Equipo 10.0.0.3 aislado: posible ransomware. Recomendación: cuarentena de puertos"
+                                 " [respaldo por reglas]")  # Fase D4
     assert _incidente(bd_temporal, incidente_id).t_notificado is not None
     detalle = cliente.get(f"/api/incidentes/{incidente_id}", headers=cabecera_operador).json()
     assert detalle["ultima_notificacion"]["estado"] == "enviada"

@@ -63,7 +63,7 @@ def test_modo_recomendar_crea_recomendacion_y_al_aprobarla_se_ejecuta(
     incidente = _alerta(cliente, cabecera_agente, payload_c1)
     assert (incidente["veredicto"], incidente["accion_propuesta"]) == ("confirmado", "cuarentena_puertos")
     assert (incidente["decision_politica"], incidente["accion_final"]) == ("recomendar", "recomendada")
-    assert "Acción recomendada: Cuarentena de puertos (confianza 0.80)" in _ultimo_correo(bd_temporal)
+    assert "Cuarentena de puertos: conserva lo básico de la red, sin caminos para saltar a otros equipos. Confianza media." in _ultimo_correo(bd_temporal)  # Fase D4: correo en lenguaje simple
     (recomendacion,) = _recomendaciones(bd_temporal)
     assert (recomendacion.estado, recomendacion.accion, recomendacion.confianza) == ("pendiente", "cuarentena_puertos", 0.8)
     assert recomendacion.motivos_politica == []
