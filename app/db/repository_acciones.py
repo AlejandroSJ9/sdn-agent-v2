@@ -79,6 +79,17 @@ def resolver_recomendacion(
         return resultado.rowcount == 1
 
 
+def pendientes_de_host(host: str, ahora: datetime) -> list[dict[str, Any]]:
+    """Recomendaciones pendientes y vigentes del host, la más reciente primero (Fase D5)."""
+    consulta = (
+        select(Recomendacion)
+        .where(Recomendacion.host == host, Recomendacion.estado == "pendiente", Recomendacion.t_expira > ahora)
+        .order_by(Recomendacion.id.desc())
+    )
+    with SesionLocal() as sesion:
+        return [_a_dict(fila) for fila in sesion.scalars(consulta)]
+
+
 def expirar_vencidas(ahora: datetime) -> list[int]:
     """Pendientes cuyo t_expira ya pasó → "expirada" (resuelta por el sistema). Devuelve sus ids."""
     with SesionLocal.begin() as sesion:

@@ -53,6 +53,15 @@ def listar(estado: str | None = None, limite: int = 100) -> list[dict[str, Any]]
     return repository_acciones.listar_recomendaciones(estado, limite)
 
 
+def pendientes_de_host(host: str) -> dict[str, dict[str, Any]]:
+    """Acción (sin alias) → la recomendación pendiente y vigente más reciente de ese host (C7, Fase D5)."""
+    expirar()
+    vigentes: dict[str, dict[str, Any]] = {}
+    for recomendacion in repository_acciones.pendientes_de_host(host, datetime.now(timezone.utc)):
+        vigentes.setdefault(acciones.ALIAS.get(recomendacion["accion"], recomendacion["accion"]), recomendacion)
+    return vigentes
+
+
 def _pendiente(recomendacion_id: int) -> dict[str, Any]:
     expirar()
     recomendacion = repository_acciones.obtener_recomendacion(recomendacion_id)

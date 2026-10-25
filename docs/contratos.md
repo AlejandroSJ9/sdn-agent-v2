@@ -210,5 +210,6 @@ GET /api/hosts/{ip}/acciones (X-Operador-Token): lo que el operador puede hacer 
   recomendación pendiente y vigente de esa acción para ese host. Host no bloqueado: modo null y todas no disponibles.
   401 sin token · 422 ip inválida · 503 si Ryu no responde.
 POST /api/hosts/{ip}/limitar_tasa y POST /api/hosts/{ip}/cuarentena_vlan: igual que /cuarentena
-  (409 si no aplica, 502 si Ryu no la aplicó; con verificación y reversión a DROP total).
+    (409 si no aplica, 502 si Ryu no la aplicó, 503 si Ryu no responde; con verificación y reversión a DROP total).
+  El 503 también aplica a POST /cuarentena y POST /bloqueo_total.
 ```

@@ -34,6 +34,11 @@ ALIAS = {"pasar_a_cuarentena": "cuarentena_puertos", "escalar_a_drop": "bloqueo_
 RELAJACIONES = ("cuarentena_puertos", "limitar_tasa", "cuarentena_vlan")
 MODOS = ("drop_total", "cuarentena", "limitado", "vlan_cuarentena")
 ESTADO_DESCONOCIDO = "Ryu no confirmó el DROP total: verifique el host"
+# Fase D5: acciones manuales del operador y por qué no están disponibles
+OPERADOR = ("cuarentena_puertos", "limitar_tasa", "cuarentena_vlan", "bloqueo_total")
+SIGLA = {"cuarentena": "A6 (cuarentena de puertos)", "limitar_tasa": "A7 (limitar tasa)",
+         "cuarentena_vlan": "A8 (cuarentena en VLAN)"}
+HOST_NO_BLOQUEADO = "El host no está bloqueado en Ryu"
 Origen = Literal["politica", "operador"]
 
 
@@ -41,10 +46,10 @@ class AccionNoPermitida(ValueError):
     """Acción fuera de la lista cerrada, inválida para el modo del host o sin capacidad en Ryu (409)."""
 
 
-def capacidades() -> dict[str, bool]:
+def capacidades(refrescar: bool = False) -> dict[str, bool]:
     """Si Ryu no responde, se asume que no tiene ninguna: la política solo recomendará."""
     try:
-        return operador.obtener_cliente_ryu().capacidades()
+        return operador.obtener_cliente_ryu().capacidades(refrescar=refrescar)
     except RyuError:
         return dict(SIN_CAPACIDADES)
 
@@ -160,19 +165,42 @@ def ejecutar(accion: str, incidente: dict[str, Any] | None, origen: Origen, host
     return resultado
 
 
-def ejecutar_por_operador(ip: str, accion: str) -> dict[str, Any]:
-    """Botones de "Hosts bloqueados": cuarentena de puertos (desde DROP total, exige A6) o volver a DROP total."""
+def leer_host(ip: str) -> tuple[dict[str, bool], str | None]:
+    """Capacidades (sin caché) y modo del host en Ryu; modo None si no está bloqueado. Lanza RyuError."""
+    cliente = operador.obtener_cliente_ryu()
+    return cliente.capacidades(refrescar=True), _leer_modo(cliente, ip)
+
+
+def motivo_no_disponible(accion: str, disponibles: dict[str, bool], modo: str | None) -> str | None:
+    """C7 (Fase D5): por qué el operador no puede pedir la acción ahora; None si puede."""
+    if modo is None:
+        return HOST_NO_BLOQUEADO
+    if accion == "bloqueo_total":
+        if not any(disponibles.values()):
+            return "Ryu no declara A6, A7 ni A8: el host solo puede estar en DROP total"
+        return "El host ya está en DROP total" if modo == "drop_total" else None
+    capacidad = ACCIONES[accion][1]
+    if not disponibles[capacidad]:
+        return f"Ryu no declara {SIGLA[capacidad]}"
+    return None if modo == "drop_total" else f"Solo se aplica desde DROP total (modo actual: {modo})"
+
+
+def validar_por_operador(ip: str, accion: str) -> str:
+    """Comprueba las condiciones de C7 con Ryu recién leído. Devuelve la acción sin alias; si no aplica → 409.
+    Si Ryu no responde, propaga RyuError (503) sin ejecutar nada."""
     accion = ALIAS.get(accion, accion)
-    if accion not in ("cuarentena_puertos", "bloqueo_total"):
+    if accion not in OPERADOR:
         raise AccionNoPermitida(f"Acción no disponible para el operador: {accion}")
-    disponibles = capacidades()
-    if accion == "cuarentena_puertos" and not disponibles["cuarentena"]:
-        raise AccionNoPermitida("Ryu no tiene la capacidad de cuarentena (A6)")
-    if accion == "bloqueo_total" and not any(disponibles.values()):
-        raise AccionNoPermitida("Ryu no tiene A6, A7 ni A8: el host solo puede estar en DROP total")
-    actual = modo_actual(ip)
-    if (accion == "bloqueo_total") == (actual == "drop_total"):
-        raise AccionNoPermitida(f"No aplica: el host está en modo {actual}")
+    disponibles, modo = leer_host(ip)
+    motivo = motivo_no_disponible(accion, disponibles, modo)
+    if motivo:
+        raise AccionNoPermitida(motivo)
+    return accion
+
+
+def ejecutar_por_operador(ip: str, accion: str) -> dict[str, Any]:
+    """Acción manual del operador (C7, Fase D5): una relajación desde DROP total o volver a DROP total."""
+    accion = validar_por_operador(ip, accion)
     incidente_id = repository_operador.ultimo_incidente_abierto_por_ip([ip]).get(ip)
     incidente = {"id": incidente_id, "host_origen": ip, "origen": "real"} if incidente_id else None
     return {"ip": ip, "accion": accion, **ejecutar(accion, incidente, "operador", host=ip)}

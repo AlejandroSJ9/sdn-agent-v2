@@ -27,10 +27,11 @@ def obtener_cliente_ryu() -> ClienteRyu:
 
 
 def estado_ryu() -> dict[str, Any]:
-    """Nunca falla: si Ryu no responde, lo informa para que el panel siga funcionando."""
+    """Nunca falla: si Ryu no responde, lo informa para que el panel siga funcionando.
+    Las capacidades se vuelven a leer (Fase D5): si Ryu se reinicia con otras, no quedan viejas en la caché."""
     try:
         cliente = obtener_cliente_ryu()
-        return {"disponible": True, **cliente.estado(), "capacidades": cliente.capacidades()}
+        return {"disponible": True, **cliente.estado(), "capacidades": cliente.capacidades(refrescar=True)}
     except RyuError as error:
         return {"disponible": False, "error": API_NO_DISPONIBLE if error.codigo == 404 else str(error)}
 

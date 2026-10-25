@@ -223,7 +223,7 @@ def test_operador_vuelve_a_drop_total_desde_cada_modo(cliente, bd_temporal, cabe
     assert cliente.post("/api/hosts/10.0.0.3/bloqueo_total", headers=cabecera_operador).json()["modo"] == "drop_total"
     assert red.modo() == "drop_total" and "kbps" not in red.bloqueados["10.0.0.3"]
     assert cliente.post("/api/hosts/10.0.0.3/bloqueo_total", headers=cabecera_operador).status_code == 409  # ya lo está
-    assert cliente.post("/api/hosts/10.0.0.3/limitar_tasa", headers=cabecera_operador).status_code in (404, 405)  # sin botón
+    assert cliente.post("/api/hosts/10.0.0.3/limitar_tasa", headers=cabecera_operador).json()["modo"] == "limitado"  # D5a
 
 
 def test_cuarentena_manual_del_operador_solo_desde_drop_total(cliente, cabecera_operador, ryu):
